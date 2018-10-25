@@ -107,5 +107,5 @@ Each material will show a source
 	Source will either be a station or a 
 
 	Entry in table for each possible location?
-
-	To verify, will probably want
+	IF LOCATION=='CREATE'
+	Add time needed to each material, which is calculated for the final value.
