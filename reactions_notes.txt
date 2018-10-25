@@ -1,0 +1,100 @@
+ramActivities
+Contains the activity ID for different industry activites. Has the reactions ID type
+
+activityID|activityName|iconNo|description|published
+0|None||No activity|1
+1|Manufacturing|18_02|Manufacturing|1
+2|Researching Technology|33_02|Technological research|0
+3|Researching Time Efficiency|33_02|Researching time efficiency|1
+4|Researching Material Efficiency|33_02|Researching material efficiency|1
+5|Copying|33_02|Copying|1
+6|Duplicating||The process of creating an item, by studying an already existing item.|0
+7|Reverse Engineering|33_02|The process of creating a blueprint from an item.|1
+8|Invention|33_02|The process of creating a more advanced item based on an existing item|1
+11|Reactions|18_02|The process of combining raw and intermediate materials to create advanced components|1
+
+
+REACTIONS
+activityID=11
+
+SELECT * FROM INVTYPES WHERE INVTYPES.TYPEID IN (SELECT typeid FROM industryactivity where activityid=11); This gets the invtypes info for all reactions (not counting 'unrefined')
+
+Maybe. Now I need to check the groups found with:  
+
+SELECT * FROM invGroups WHERE UPPER(groupName) like '%REACTION%';
+
+groupID|categoryID|groupName|iconID|useBasePrice
+436|24|Simple Reaction|2665|1|0|0|0|1
+484|24|Complex Reactions|2666|1|0|0|0|1
+661|24|Simple Biochemical Reactions|2665|0|0|0|0|1
+662|24|Complex Biochemical Reactions|2665|0|0|0|0|1
+977|24|Hybrid Reactions||1|0|0|0|1
+
+1888|9|Composite Reaction Formulas||1|0|0|0|1
+1889|9|Polymer Reaction Formulas||1|0|0|0|1
+1890|9|Biochemical Reaction Formulas||1|0|0|0|1
+
+The category from the first part is 24, which means REACTION (is this now deprecated?)
+The category from the second aprt is 9, which means BLUEPRINT
+
+Assuming I'm not making boosters, I just need to look at 1888 and 1889
+industryActivity is just the time for the reaction
+
+Now I want to know about PI materials....I'll check group
+PI Categories?
+
+SELECT * FROM invCategories WHERE UPPER(categoryName) LIKE '%PLANET%';
+categoryID|categoryName|iconID|published
+41|Planetary Interaction||1
+42|Planetary Resources||1
+43|Planetary Commodities||1
+
+
+industryActivity is the time it takes for blueprints to happen, and links the typeid of the reaction blueprint to the activity id
+
+industryBlueprint is MaxProductionLimit - this is....?
+
+SELECT typeID FROM invTypes WHERE groupID IN (1888, 1889, 1890);
+SELECT typeID FROM industryActivity WHERE activityID=11;  **** I like this one better because industryActivity is way smaller
+
+
+SELECT * FROM industryActivityProducts WHERE typeID IN (SELECT typeID FROM industryActivity WHERE activityID=11);
+
+typeID|activityID|productTypeID|quantity
+46186|11|33337|200
+46187|11|32821|1
+46188|11|32822|1
+46189|11|32823|1
+46190|11|32824|1
+46191|11|32825|1
+46192|11|32826|1
+46193|11|32827|1
+46194|11|32828|1
+46195|11|32829|1
+46196|11|29664|1
+46197|11|29663|1
+46198|11|29662|1
+46199|11|29661|1
+46200|11|29660|1
+46201|11|29659|1
+46202|11|33339|1
+46203|11|33338|1
+46204|11|16671|10000
+
+What is this block about?
+Making the urefined reaction thingy
+Can either leave this out or include it
+Might just allow it to exist.
+
+
+SELECT * FROM industryActivityMaterials WHERE typeID IN (SELECT typeID FROM industryActivity WHERE activityID=11);
+
+Everything seems to be within order
+
+
+SELECT DISTINCT materialTypeID FROM industryActivityMaterials WHERE typeID IN(SELECT typeID FROM industryActivity WHERE activityID=11) ORDER BY materialTypeID ASC;
+SELECT DISTINCT productTypeID FROM industryActivityProducts WHERE typeID IN(SELECT typeID FROM industryActivity WHERE activityID=11) ORDER BY materialTypeID ASC;
+
+
+SELECT typeID FROM industryActivityMaterials WHERE typeID IN(SELECT typeID FROM industryActivity WHERE activityID=11) AND materialTypeID in (SELECT DISTINCT productTypeID FROM industryActivityProducts WHERE typeID IN(SELECT typeID FROM industryActivity WHERE activityID=11))ORDER BY materialTypeID ASC;
+I also need to take into account that it is possible to use the subreactions instead of 

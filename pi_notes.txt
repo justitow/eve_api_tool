@@ -1,0 +1,26 @@
+SELECT * FROM invGroups WHERE categoryID IN (41, 42, 43);
+groupID|categoryID|groupName|iconID|useBasePrice|anch
+1026|41|Extractors||1|0|0|0|1
+1027|41|Command Centers||1|0|0|0|1
+1028|41|Processors||1|0|0|0|1
+1029|41|Storage Facilities||1|0|0|0|1
+1030|41|Spaceports||1|0|0|0|1
+1036|41|Planetary Links||1|0|0|0|1
+1063|41|Extractor Control Units||1|0|0|0|1
+1081|41|Mercenary Bases||0|0|0|0|1
+1082|41|Capsuleer Bases||0|0|0|0|1
+1032|42|Planet Solid - Raw Resource||0|0|0|0|1
+1033|42|Planet Liquid-Gas - Raw Resource||0|0|0|0|1
+1035|42|Planet Organic - Raw Resource||0|0|0|0|1
+1034|43|Refined Commodities - Tier 2||1|0|0|0|1
+1040|43|Specialized Commodities - Tier 3||1|0|0|0|1
+1041|43|Advanced Commodities - Tier 4||0|0|0|0|1
+1042|43|Basic Commodities - Tier 1||1|0|0|0|1
+
+This got me these groups
+
+
+Its looks like only the groups for category 42 and 43 are relevant.
+It appears that Planetary Resources (categoryID=42) are T0 resources
+Planetary Commodities (categoryID=43) are T1-T4 materials
+groupID IN (1032, 1033, 1035, 1034, 1040, 1041, 1042)
