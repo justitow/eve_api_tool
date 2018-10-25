@@ -392,3 +392,9 @@ volumn_remain INTEGER,
 volumn_total INTEGER,
 region_id INTEGER
 );
+
+
+SELECT * FROM market_info WHERE type_id=16658 AND is_buy_order=1 ORDER BY price DESC;
+Is correct when I verify against evemarketer
+system_id can get a good idea of where I'm actually going to be selling
+
