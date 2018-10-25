@@ -301,17 +301,94 @@ CREATE TABLE ODB.reaction_products AS
 		WHERE INAC.activityID=11);
 		
 		
-SELECT invt.typeName, invt.typeid, invt.groupid 
+SELECT *
 	FROM 
 		(SELECT DISTINCT productTypeID 
-		FROM ODB.reaction_products) all_products
+		FROM ODB.reaction_products) products
 	INNER JOIN
 		(SELECT DISTINCT materialTypeID 
-		FROM ODB.reaction_materials) all_materials
-		ON all_products.productTypeID=all_materials.materialTypeID
-	JOIN 
-		invTypes invt
-		ON invt.typeid=all_materials.materialTypeID
-	ORDER BY all_products.productTypeID ASC;
+		FROM ODB.reaction_materials) materials
+	ON products.productTypeID=materials.materialTypeID
+	ORDER BY products.productTypeID ASC;
+	
+Now I'll make a table for the industryActivity, since I might as well at this point
+
+CREATE TABLE ODB.reaction_activities AS
+	SELECT * FROM industryActivity WHERE activityID=11;
+	
+
+In summary, at this point, I have:
+	-table with reaction materials
+	-table with reaction products
+	-table with reaction activities
+
+	
+How am I going to store the price?
+What data can I retrieve from the API?
+How granular should I be looking at the data?
 
 
+/markets/{region_id}/history/ 		--- List historical market statistics in a region
+/markets/{region_id}/orders/ 		--- List orders in a region
+/markets/{region_id}/types/ 		--- List type IDs relevant to a market
+/markets/groups/ 					--- Get item groups
+/markets/groups/{market_group_id}/	--- Get item group information
+/markets/prices/					--- List market prices
+/markets/structures/{structure_id}/	--- List orders in a structure
+
+
+I will use 
+/markets/{region_id}/history/ 		--- List historical market statistics in a region
+/markets/{region_id}/orders/ 		--- List orders in a region
+
+For Jita, at least, if I don't use the type_id, there are ~300 pages
+There are 98 unique materials
+		  94 unique products
+
+What about the other markets? Probably similarish results?
+
+How should I go about the data for the markets
+
+
+SELECT regionID, solarSystemNAME from mapSolarSystems where solarsystemname IN ('Jita', 'Hek', 'Amarr', 'Dodixie');
+
+regionID|solarSystemName
+10000002|Jita
+10000042|Hek
+10000043|Amarr
+10000032|Dodixie
+
+
+So I need to create a table to store the values-
+
+{
+'duration': 90, 
+'is_buy_order': False, 
+'issued': <pyswagger.primitives._time.Datetime object at 0x0AD08AD0>, 
+'location_id': 60003760, 
+'min_volume': 1, 
+'order_id': 5219840991, 
+'price': 17490.6, 
+'range': 'region', 
+'system_id': 30000142, 
+'type_id': 16657, 
+'volume_remain': 60000, 
+volume_total': 60000
+}
+
+I may want to also include the regionID
+
+CREATE TABLE ODB.market_info(
+duration INTEGER,
+is_buy_order INTEGER,
+issued DATETIME,
+location_id INTEGER,
+min_volume INTEGER,
+order_id INTEGER,
+price FLOAT,
+range TEXT,
+system_id INTEGER,
+volumn_remain INTEGER,
+volumn_total INTEGER,
+region_id INTEGER
+);
