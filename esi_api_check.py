@@ -15,9 +15,8 @@ except AttributeError:
 else:
     # Handle target environment that doesn't support HTTPS verification 
     ssl._create_default_https_context = _create_unverified_https_context
-#################################################################################
 
-##########CHANGES THE WORKING PATH TO THE LOCATION OF THE FILE###############
+
 abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
@@ -61,7 +60,7 @@ if __name__=="__main__":
     #esi_app, app, client = initialize_api_handlers()
     api = API()
     
-    '''
+    
     print('Requesting api information')
     market_order_operation = api.app.op['get_markets_region_id_orders'](
         region_id=10000002,
@@ -79,7 +78,7 @@ if __name__=="__main__":
 
     # to get the headers objects, you can get the header attribute
     print(response.data[0])
-    '''
+    
     
     
     con = sqlite3.connect('./program.sqlite')

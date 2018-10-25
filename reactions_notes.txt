@@ -97,4 +97,15 @@ SELECT DISTINCT productTypeID FROM industryActivityProducts WHERE typeID IN(SELE
 
 
 SELECT typeID FROM industryActivityMaterials WHERE typeID IN(SELECT typeID FROM industryActivity WHERE activityID=11) AND materialTypeID in (SELECT DISTINCT productTypeID FROM industryActivityProducts WHERE typeID IN(SELECT typeID FROM industryActivity WHERE activityID=11))ORDER BY materialTypeID ASC;
-I also need to take into account that it is possible to use the subreactions instead of 
+I also need to take into account that it is possible to use the subreactions instead of the material
+
+Should I do this as a seperate entry in the thing? So like,
+create row in database for both main and subreaction, and show source?
+Make it recursive?
+
+Each material will show a source
+	Source will either be a station or a 
+
+	Entry in table for each possible location?
+
+	To verify, will probably want
