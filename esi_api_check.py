@@ -5,6 +5,7 @@ import pickle
 import os
 from datetime import date, time, datetime, timedelta
 import sqlite3
+import time
 
 ########## DOES WEIRD STUFF DON'T REMOVE ###########################################
 try:
@@ -23,7 +24,7 @@ os.chdir(dname)
 ########################################################################
 
 
-def generate_market_requests(input_list, order_string, region):
+def generate_market_info_requests(input_list, order_string, region):
     operations = []
     for input_id in input_list:
         operations.append(
@@ -55,17 +56,20 @@ def to_sql_datetime(in_date):
     outstring = str(in_date.year)+'-'+str(in_date.month)+'-'+str(in_date.day)+' '+str(in_date.hour)+':'+str(in_date.minute) + ':' + str(in_date.second) 
     return outstring
 def fetch_market_data(cur):
-    cur.execute("SELECT DISTINCT materialTypeID FROM reaction_materials")
+    cur.execute("SELECT DISTINCT materialTypeID FROM reaction_materials WHERE materialTypeID NOT IN (SELECT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products))")
     materials=cur.fetchall()
-    cur.execute("SELECT DISTINCT productTypeID FROM reaction_products")
+    cur.execute("SELECT DISTINCT productTypeID FROM reaction_products WHERE productTypeID NOT IN (SELECT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products))")
     products=cur.fetchall()
+    cur.execute("SELECT DISTINCT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products)")
+    both = cur.fetchall()
     
     operations = []
     regions = [10000002, 10000042, 10000043, 10000032]
     for region in regions:
-        operations += generate_market_requests(materials, 'sell', region)
-        operations += generate_market_requests(products, 'buy', region)
-    
+        operations += generate_market_info_requests(materials, 'sell', region)
+        operations += generate_market_info_requests(products, 'buy', region)
+        operations += generate_market_info_requests(both, 'all', region)
+
     
     results = None
     print('starting request')
@@ -76,6 +80,8 @@ def fetch_market_data(cur):
     #print(results)
     return results
     
+#def fetch_market_history(
+    
 def initialize_database():
     con = sqlite3.connect('./program.sqlite')
     con.isolation_level = None
@@ -83,15 +89,15 @@ def initialize_database():
     cur.execute("ATTACH DATABASE 'sde.sqlite' AS sde")
     return cur
     
-def insert_results(results, cur):
+def insert_info_results(results, cur):
     print('inserting')
     cur.execute("DELETE FROM market_info")
     cur.execute('BEGIN TRANSACTION')
     for swagger_object in results:
         for order in swagger_object[1].data:
-            cur.execute('INSERT OR IGNORE INTO market_info (duration,is_buy_order, location_id, min_volume, order_id, price, range, system_id, type_id, volume_remain, volume_total) VALUES (?,?,?,?,?,?,?,?,?,?,?)', 
+            cur.execute('INSERT OR IGNORE INTO market_info (duration, issued, is_buy_order, location_id, min_volume, order_id, price, range, system_id, type_id, volume_remain, volume_total) VALUES (?,datetime(?),?,?,?,?,?,?,?,?,?,?)', 
             (order['duration'],
-             #order['issued'],
+             str(order['issued']),
              order['is_buy_order'],
              order['location_id'],
              order['min_volume'],
@@ -145,11 +151,15 @@ class API:
 if __name__=="__main__":
     
     #esi_app, app, client = initialize_api_handlers()
+    
     api = API()
     
     cur = initialize_database()
     
-    results = fetch_market_data(cur)
+    # results = fetch_market_data(cur)
+    # insert_info_results(results, cur)
     
-    insert_results(results, cur)
-    print(results)
+    
+    
+    print('working')
+    #print(results)

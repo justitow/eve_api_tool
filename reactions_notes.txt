@@ -388,8 +388,8 @@ order_id INTEGER,
 price FLOAT,
 range TEXT,
 system_id INTEGER,
-volumn_remain INTEGER,
-volumn_total INTEGER,
+volume_remain INTEGER,
+volume_total INTEGER,
 region_id INTEGER
 );
 
@@ -397,4 +397,90 @@ region_id INTEGER
 SELECT * FROM market_info WHERE type_id=16658 AND is_buy_order=1 ORDER BY price DESC;
 Is correct when I verify against evemarketer
 system_id can get a good idea of where I'm actually going to be selling
+
+
+For the requests, I'm just gonna do:
+SELECT materialtypeID from ODB.reaction_materials UNION SELECT producttypeID FROM odb.reaction_products;
+And then do all of the results for these. It removed around 20 extra requests per region
+
+
+
+SELECT DISTINCT materialTypeID FROM reaction_materials WHERE materialTypeID NOT IN (SELECT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products))
+SELECT DISTINCT productTypeID FROM reaction_products WHERE productTypeID NOT IN (SELECT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products))
+SELECT DISTINCT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products)
+
+These three commands shoold get all of the typid's, sorted by the information requested
+
+
+
+
+CREATE TABLE ODB.market_history
+(
+	average INTEGER,
+	history_date DATE,
+	highest INTEGER,
+	lowest INTEGER,
+	order_count INTEGER,
+	volume INTEGER,
+	type_id INTEGER
+)
+
+I'll probably worry about this part later??
+
+
+Okay
+I have the market data for the regions that I am in. 
+
+Now I need to...
+
+
+
+Find the best market for buying or selling for a particular item
+ - how do I want to do this?
+ - how do I want to store this information? (probably in a database)
+ - how do I want to manage the subreactions? ((sub-sub-reactions?))
+ 
+CREATE TABLE ODB.market_best
+(
+	type_id INTEGER,
+	price FLOAT,
+	volume INTEGER,
+	buy_or_sell INTEGER,
+	location TEXT, -- not sure about this one
+	time_cost INTEGER
+);
+
+I want an easy way to get the list of which places have the cheapest stuff, broken down by location
+This list will have all possible location for a material? So like, the best price at that REGION_ID?
+
+SELECT * FROM (SELECT * FROM ODB.market_info WHERE type_id=16655 AND is_buy_order=0 ORDER BY PRICE ASC) GROUP BY system_ID;
+
+This gets the minimum value for each system
+I think I need to work out 'minimum need value' so that the region I am looking at has neough to support the volumes I need to buy
+
+I want to be able to support the option to enable multiple-system buys?
+but that will be later
+	1.)	For each product, create a list of the trade hubs that carry it
+	2.) For each trade hub, find the price for $PARAM amount of the material
+	3.) Insert that information and maybe some other stuff into the market_best table
+	4.)	For each reaction with subreactions, find the cost to produce it from the subcomponents
+	5.) Insert that batch of info into the table
+	
+	
+***are there sub-sub-reactions?****
+
+Lets check sub-sub reactions
+SELECT DISTINCT typeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products)
+
+SELECT productTypeID from reaction_products WHERE typeID IN (SELECT DISTINCT typeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products));
+
+shit. there are sub-sub-reactions
+current list -> [products used as materials]
+I want [products used as materials in reactions whos products are used as materials]
+
+sub-sub-sub reactions? I don't think sooo
+
+so how do I do this?
+WAIT, are there SUB-SUB reactions?
+I don't think there actually are......maybe....hopefully....
 
