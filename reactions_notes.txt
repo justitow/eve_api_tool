@@ -93,13 +93,13 @@ Everything seems to be within order
 
 
 SELECT DISTINCT MATS.materialTypeID 
-	FROM industryActivityMaterials MATS 
-	WHERE MATS.typeID 
-	IN
-		(SELECT typeID 
-		FROM industryActivity IACT 
-		WHERE IACT.activityID=11) 
-	ORDER BY MATS.materialTypeID ASC;
+    FROM industryActivityMaterials MATS 
+    WHERE MATS.typeID 
+    IN
+        (SELECT typeID 
+        FROM industryActivity IACT 
+        WHERE IACT.activityID=11) 
+    ORDER BY MATS.materialTypeID ASC;
 
 SELECT DISTINCT productTypeID FROM industryActivityProducts WHERE typeID IN(SELECT typeID FROM industryActivity WHERE activityID=11) ORDER BY productTypeID ASC;
 
@@ -112,12 +112,12 @@ create row in database for both main and subreaction, and show source?
 Make it recursive?
 
 Each material will show a source
-	Source will either be a station or a 
+    Source will either be a station or a 
 
-	Entry in table for each possible location?
-	IF LOCATION=='CREATE'
-	Time to make material on the table
-	
+    Entry in table for each possible location?
+    IF LOCATION=='CREATE'
+    Time to make material on the table
+    
 Gather the buy price for materials
 Gather the sell price for materials
 
@@ -125,28 +125,28 @@ SELECT DISTINCT productTypeID FROM industryActivityProducts WHERE productTypeID 
 This is not working. For some reason, its putting the typeID for fuel block
 
 SELECT DISTINCT mats.materialTypeID 
-	FROM industryActivityMaterials mats 
-	WHERE mats.materialTypeID IN 
-		(SELECT prod.productTypeID 
-		FROM industryActivityProducts prod 
-		WHERE prod.TypeID IN 
-			(SELECT inda.typeID 
-			FROM industryActivity inda 
-			WHERE inda.activityID=11)
-		) ORDER BY mats.materialTypeID ASC;
-		
+    FROM industryActivityMaterials mats 
+    WHERE mats.materialTypeID IN 
+        (SELECT prod.productTypeID 
+        FROM industryActivityProducts prod 
+        WHERE prod.TypeID IN 
+            (SELECT inda.typeID 
+            FROM industryActivity inda 
+            WHERE inda.activityID=11)
+        ) ORDER BY mats.materialTypeID ASC;
+        
 
 SELECT DISTINCT prod.productTypeID 
-	FROM industryActivityProducts prod 
-	WHERE prod.productTypeID IN 
-		(SELECT mats.materialTypeID 
-		FROM industryActivityMaterials mats 
-		WHERE mats.TypeID IN 
-			(SELECT inda.typeID 
-			FROM industryActivity inda 
-			WHERE inda.activityID=11)
-		) ORDER BY prod.ProductTypeID ASC;
-		
+    FROM industryActivityProducts prod 
+    WHERE prod.productTypeID IN 
+        (SELECT mats.materialTypeID 
+        FROM industryActivityMaterials mats 
+        WHERE mats.TypeID IN 
+            (SELECT inda.typeID 
+            FROM industryActivity inda 
+            WHERE inda.activityID=11)
+        ) ORDER BY prod.ProductTypeID ASC;
+        
 This has way less resutls
 Does not look correct
 Maybe I can do an inner join?
@@ -156,27 +156,27 @@ Maybe I can do an inner join?
 THIS GETS ME ALL OF THE COMPOSITE REACTIONS PROBBALY?
 
 SELECT invt.typeName, invt.typeid, invt.groupid 
-	FROM 
-		(SELECT DISTINCT prod.productTypeID 
-		FROM industryActivityProducts prod
-		WHERE prod.typeID IN 
-			(SELECT inac.typeID 
-				FROM industryActivity inac 
-				WHERE inac.activityID=11)) all_products
-	INNER JOIN
-		(SELECT DISTINCT materialTypeID 
-		FROM industryActivityMaterials 
-		WHERE typeID IN
-			(SELECT typeID 
-				FROM industryActivity 
-				WHERE activityID=11)) all_materials
-		ON all_products.productTypeID=all_materials.materialTypeID
-	JOIN invTypes invt
-		ON invt.typeid=all_materials.materialTypeID
-	WHERE invt.groupID != 712
-	ORDER BY all_products.productTypeID ASC;
-	
-	
+    FROM 
+        (SELECT DISTINCT prod.productTypeID 
+        FROM industryActivityProducts prod
+        WHERE prod.typeID IN 
+            (SELECT inac.typeID 
+                FROM industryActivity inac 
+                WHERE inac.activityID=11)) all_products
+    INNER JOIN
+        (SELECT DISTINCT materialTypeID 
+        FROM industryActivityMaterials 
+        WHERE typeID IN
+            (SELECT typeID 
+                FROM industryActivity 
+                WHERE activityID=11)) all_materials
+        ON all_products.productTypeID=all_materials.materialTypeID
+    JOIN invTypes invt
+        ON invt.typeid=all_materials.materialTypeID
+    WHERE invt.groupID != 712
+    ORDER BY all_products.productTypeID ASC;
+    
+    
 sqlite> select groupname from invgroups where groupid=428;
 Intermediate Materials
 
@@ -184,17 +184,17 @@ I'm going to check with the rest of the materials now to check their groups
 Or I'll check the products...?
 
 SELECT DISTINCT MATS.materialTypeID, TYPE.typename, type.groupID 
-	FROM industryActivityMaterials MATS 
-	JOIN invTypes TYPE
-		ON TYPE.typeID=MATS.materialTypeID
-	WHERE 
-		MATS.typeID IN
-			(SELECT typeID 
-			FROM industryActivity IACT 
-			WHERE IACT.activityID=11)
-		-- AND TYPE.groupID=428
-	ORDER BY MATS.materialTypeID ASC;
-	
+    FROM industryActivityMaterials MATS 
+    JOIN invTypes TYPE
+        ON TYPE.typeID=MATS.materialTypeID
+    WHERE 
+        MATS.typeID IN
+            (SELECT typeID 
+            FROM industryActivity IACT 
+            WHERE IACT.activityID=11)
+        -- AND TYPE.groupID=428
+    ORDER BY MATS.materialTypeID ASC;
+    
 16654|Titanium Chromide|428
 16655|Crystallite Alloy|428
 16656|Fernite Alloy|428
@@ -218,132 +218,132 @@ SELECT DISTINCT MATS.materialTypeID, TYPE.typename, type.groupID
 33337|Promethium Mercurite|428
 
 This should be all of the materials that are subreactions themselves? (the GROUPID=428 ones)
-	
+    
 Maybe filter out biochemical materials?
 (groupID != 712)
 
 
 SELECT COUNT() FROM (SELECT DISTINCT MATS.materialTypeID, TYPE.typename, type.groupID 
-	FROM industryActivityMaterials MATS 
-	JOIN invTypes TYPE
-		ON TYPE.typeID=MATS.materialTypeID
-	WHERE 
-		MATS.typeID IN
-			(SELECT typeID 
-			FROM industryActivity IACT 
-			WHERE IACT.activityID=11)
-		 AND TYPE.groupID=428
-	ORDER BY MATS.materialTypeID ASC);
-	
-	
+    FROM industryActivityMaterials MATS 
+    JOIN invTypes TYPE
+        ON TYPE.typeID=MATS.materialTypeID
+    WHERE 
+        MATS.typeID IN
+            (SELECT typeID 
+            FROM industryActivity IACT 
+            WHERE IACT.activityID=11)
+         AND TYPE.groupID=428
+    ORDER BY MATS.materialTypeID ASC);
+    
+    
 SELECT COUNT() FROM (SELECT invt.typeName, invt.typeid, invt.groupid 
-	FROM 
-		(SELECT DISTINCT prod.productTypeID 
-		FROM industryActivityProducts prod
-		WHERE prod.typeID IN 
-			(SELECT inac.typeID 
-				FROM industryActivity inac 
-				WHERE inac.activityID=11)) all_products
-	INNER JOIN
-		(SELECT DISTINCT materialTypeID 
-		FROM industryActivityMaterials 
-		WHERE typeID IN
-			(SELECT typeID 
-				FROM industryActivity 
-				WHERE activityID=11)) all_materials
-		ON all_products.productTypeID=all_materials.materialTypeID
-	JOIN invTypes invt
-		ON invt.typeid=all_materials.materialTypeID
-	WHERE invt.groupID != 712
-	ORDER BY all_products.productTypeID ASC);
-	
+    FROM 
+        (SELECT DISTINCT prod.productTypeID 
+        FROM industryActivityProducts prod
+        WHERE prod.typeID IN 
+            (SELECT inac.typeID 
+                FROM industryActivity inac 
+                WHERE inac.activityID=11)) all_products
+    INNER JOIN
+        (SELECT DISTINCT materialTypeID 
+        FROM industryActivityMaterials 
+        WHERE typeID IN
+            (SELECT typeID 
+                FROM industryActivity 
+                WHERE activityID=11)) all_materials
+        ON all_products.productTypeID=all_materials.materialTypeID
+    JOIN invTypes invt
+        ON invt.typeid=all_materials.materialTypeID
+    WHERE invt.groupID != 712
+    ORDER BY all_products.productTypeID ASC);
+    
 Both counts produce result of 21, which means that they are both ways to see the materials that can be produced from reactions
 
 
 SELECT invt.typeName, invt.typeid, invt.groupid 
-	FROM 
-		(SELECT DISTINCT prod.productTypeID 
-		FROM industryActivityProducts prod
-		WHERE prod.typeID IN 
-			(SELECT inac.typeID 
-				FROM industryActivity inac 
-				WHERE inac.activityID=11)) all_products
-	INNER JOIN
-		(SELECT DISTINCT materialTypeID 
-		FROM industryActivityMaterials 
-		WHERE typeID IN
-			(SELECT typeID 
-				FROM industryActivity 
-				WHERE activityID=11)) all_materials
-		ON all_products.productTypeID=all_materials.materialTypeID
-	JOIN invTypes invt
-		ON invt.typeid=all_materials.materialTypeID
-	--WHERE invt.groupID != 712
-	ORDER BY all_products.productTypeID ASC;
-	
+    FROM 
+        (SELECT DISTINCT prod.productTypeID 
+        FROM industryActivityProducts prod
+        WHERE prod.typeID IN 
+            (SELECT inac.typeID 
+                FROM industryActivity inac 
+                WHERE inac.activityID=11)) all_products
+    INNER JOIN
+        (SELECT DISTINCT materialTypeID 
+        FROM industryActivityMaterials 
+        WHERE typeID IN
+            (SELECT typeID 
+                FROM industryActivity 
+                WHERE activityID=11)) all_materials
+        ON all_products.productTypeID=all_materials.materialTypeID
+    JOIN invTypes invt
+        ON invt.typeid=all_materials.materialTypeID
+    --WHERE invt.groupID != 712
+    ORDER BY all_products.productTypeID ASC;
+    
 This one seems like it is the best "future proof" one
 Maybe I should create my own tables
 
 CREATE TABLE ODB.reaction_materials AS 
-	SELECT * 
-	FROM industryActivityMaterials MATS
-	WHERE MATS.typeID IN
-		(SELECT IACT.typeID 
-		FROM industryActivity IACT
-		WHERE IACT.activityID=11);
-		
+    SELECT * 
+    FROM industryActivityMaterials MATS
+    WHERE MATS.typeID IN
+        (SELECT IACT.typeID 
+        FROM industryActivity IACT
+        WHERE IACT.activityID=11);
+        
 CREATE TABLE ODB.reaction_products AS
-	SELECT * 
-	FROM industryActivityProducts PROD
-	WHERE PROD.typeID IN 
-		(SELECT INAC.typeID 
-		FROM industryActivity INAC 
-		WHERE INAC.activityID=11);
-		
-		
+    SELECT * 
+    FROM industryActivityProducts PROD
+    WHERE PROD.typeID IN 
+        (SELECT INAC.typeID 
+        FROM industryActivity INAC 
+        WHERE INAC.activityID=11);
+        
+        
 SELECT *
-	FROM 
-		(SELECT DISTINCT productTypeID 
-		FROM ODB.reaction_products) products
-	INNER JOIN
-		(SELECT DISTINCT materialTypeID 
-		FROM ODB.reaction_materials) materials
-	ON products.productTypeID=materials.materialTypeID
-	ORDER BY products.productTypeID ASC;
-	
+    FROM 
+        (SELECT DISTINCT productTypeID 
+        FROM ODB.reaction_products) products
+    INNER JOIN
+        (SELECT DISTINCT materialTypeID 
+        FROM ODB.reaction_materials) materials
+    ON products.productTypeID=materials.materialTypeID
+    ORDER BY products.productTypeID ASC;
+    
 Now I'll make a table for the industryActivity, since I might as well at this point
 
 CREATE TABLE ODB.reaction_activities AS
-	SELECT * FROM industryActivity WHERE activityID=11;
-	
+    SELECT * FROM industryActivity WHERE activityID=11;
+    
 
 In summary, at this point, I have:
-	-table with reaction materials
-	-table with reaction products
-	-table with reaction activities
+    -table with reaction materials
+    -table with reaction products
+    -table with reaction activities
 
-	
+    
 How am I going to store the price?
 What data can I retrieve from the API?
 How granular should I be looking at the data?
 
 
-/markets/{region_id}/history/ 		--- List historical market statistics in a region
-/markets/{region_id}/orders/ 		--- List orders in a region
-/markets/{region_id}/types/ 		--- List type IDs relevant to a market
-/markets/groups/ 					--- Get item groups
-/markets/groups/{market_group_id}/	--- Get item group information
-/markets/prices/					--- List market prices
-/markets/structures/{structure_id}/	--- List orders in a structure
+/markets/{region_id}/history/       --- List historical market statistics in a region
+/markets/{region_id}/orders/        --- List orders in a region
+/markets/{region_id}/types/         --- List type IDs relevant to a market
+/markets/groups/                    --- Get item groups
+/markets/groups/{market_group_id}/  --- Get item group information
+/markets/prices/                    --- List market prices
+/markets/structures/{structure_id}/ --- List orders in a structure
 
 
 I will use 
-/markets/{region_id}/history/ 		--- List historical market statistics in a region
-/markets/{region_id}/orders/ 		--- List orders in a region
+/markets/{region_id}/history/       --- List historical market statistics in a region
+/markets/{region_id}/orders/        --- List orders in a region
 
 For Jita, at least, if I don't use the type_id, there are ~300 pages
 There are 98 unique materials
-		  94 unique products
+          94 unique products
 
 What about the other markets? Probably similarish results?
 
@@ -416,13 +416,13 @@ These three commands shoold get all of the typid's, sorted by the information re
 
 CREATE TABLE ODB.market_history
 (
-	average INTEGER,
-	history_date DATE,
-	highest INTEGER,
-	lowest INTEGER,
-	order_count INTEGER,
-	volume INTEGER,
-	type_id INTEGER
+    average INTEGER,
+    history_date DATE,
+    highest INTEGER,
+    lowest INTEGER,
+    order_count INTEGER,
+    volume INTEGER,
+    type_id INTEGER
 )
 
 I'll probably worry about this part later??
@@ -442,12 +442,12 @@ Find the best market for buying or selling for a particular item
  
 CREATE TABLE ODB.market_best
 (
-	type_id INTEGER,
-	price FLOAT,
-	volume INTEGER,
-	buy_or_sell INTEGER,
-	location TEXT, -- not sure about this one
-	time_cost INTEGER
+    type_id INTEGER,
+    price FLOAT,
+    volume INTEGER,
+    buy_or_sell INTEGER,
+    location TEXT, -- not sure about this one
+    time_cost INTEGER
 );
 
 I want an easy way to get the list of which places have the cheapest stuff, broken down by location
@@ -460,13 +460,13 @@ I think I need to work out 'minimum need value' so that the region I am looking 
 
 I want to be able to support the option to enable multiple-system buys?
 but that will be later
-	1.)	For each product, create a list of the trade hubs that carry it
-	2.) For each trade hub, find the price for $PARAM amount of the material
-	3.) Insert that information and maybe some other stuff into the market_best table
-	4.)	For each reaction with subreactions, find the cost to produce it from the subcomponents
-	5.) Insert that batch of info into the table
-	
-	
+    1.) For each product, create a list of the trade hubs that carry it
+    2.) For each trade hub, find the price for $PARAM amount of the material
+    3.) Insert that information and maybe some other stuff into the market_best table
+    4.) For each reaction with subreactions, find the cost to produce it from the subcomponents
+    5.) Insert that batch of info into the table
+    
+    
 ***are there sub-sub-reactions?****
 
 Lets check sub-sub reactions
@@ -484,3 +484,118 @@ so how do I do this?
 WAIT, are there SUB-SUB reactions?
 I don't think there actually are......maybe....hopefully....
 
+To get the cheapest price, why not just run it twice? 
+    -For each typid, select MIN(possible_locations)
+        -now have best price for each location (not counting reacting materials ourself)
+    -Add up the values for reacting things ourselvves using the best location price
+    -for each typeid, select MIN(possible_locations)
+        -now have a best price for locations (including reaction prices, but not counting subreactins)
+    -add up the values for reacting things ourseves using the best location price.
+
+    "materials that are products but their reaction's products are not materials"
+
+SELECT DISTINCT mats.typeid, typename from reaction_materials mats 
+    JOIN reaction_products prods ON mats.typeid=prods.typeid
+    JOIN sde.invtypes on sde.invtypes.typeid=mats.typeid
+    WHERE materialTypeID 
+        IN (SELECT productTypeID from reaction_products)
+        AND productTypeID NOT IN (SELECT materialTypeID from reaction_materials);
+
+This gets me all of the items that have a sub-reaction
+
+I sorta want the oposite though
+
+SELECT DISTINCT prods.typeid, typename from reaction_products prods
+    JOIN reaction_materials mats ON mats.typeid=prods.typeid
+    JOIN sde.invtypes on sde.invtypes.typeid=prods.typeid
+    WHERE productTypeID 
+        IN (SELECT materialTypeID from reaction_materials)
+        AND materialTypeID NOT IN (SELECT productTypeID from reaction_products);
+
+SELECT COUNT(*) FROM (SELECT DISTINCT mats.typeid, typename from reaction_materials mats JOIN reaction_products prods ON mats.typeid=prods.typeid JOIN sde.invtypes on sde.invtypes.typeid=mats.typeid WHERE materialTypeID  IN (SELECT productTypeID from reaction_products) AND productTypeID NOT IN (SELECT materialTypeID from reaction_materials));
+
+SELECT COUNT(*) FROM (SELECT DISTINCT mats.typeid, typename from reaction_products prods JOIN reaction_materials mats ON mats.typeid=prods.typeid JOIN sde.invtypes on sde.invtypes.typeid=mats.typeid WHERE productTypeID  IN (SELECT materialTypeID from reaction_materials) AND materialTypeID NOT IN (SELECT productTypeID from reaction_products));
+
+Honestly not 100% if this count is correct
+
+For super-reactions:
+45732|Test Reaction Blueprint
+46204|Titanium Carbide Reaction Formula
+46205|Crystalline Carbonide Reaction Formula
+46206|Fernite Carbide Reaction Formula
+46207|Tungsten Carbide Reaction Formula
+46208|Sylramic Fibers Reaction Formula
+46209|Fulleride Reaction Formula
+46210|Phenolic Composites Reaction Formula
+46211|Nanotransistors Reaction Formula
+46212|Hypersynaptic Fibers Reaction Formula
+46213|Ferrogel Reaction Formula
+46214|Fermionic Condensates Reaction Formula
+46215|Plasmonic Metamaterials Reaction Formula
+46216|Terahertz Metamaterials Reaction Formula
+46217|Photonic Metamaterials Reaction Formula
+46218|Nonlinear Metamaterials Reaction Formula
+46235|Strong Blue Pill Booster Reaction Formula
+46244|Strong Crash Booster Reaction Formula
+46245|Strong Drop Booster Reaction Formula
+46246|Strong Exile Booster Reaction Formula
+46247|Strong Mindflood Booster Reaction Formula
+46248|Strong Frentix Booster Reaction Formula
+46249|Strong X-Instinct Booster Reaction Formula
+46250|Strong Sooth Sayer Booster Reaction Formula
+
+For subreaction:
+46166|Caesarium Cadmide Reaction Formula
+46167|Carbon Polymers Reaction Formula
+46168|Ceramic Powder Reaction Formula
+46169|Crystallite Alloy Reaction Formula
+46170|Dysporite Reaction Formula
+46171|Fernite Alloy Reaction Formula
+46172|Ferrofluid Reaction Formula
+46173|Fluxed Condensates Reaction Formula
+46174|Hexite Reaction Formula
+46175|Hyperflurite Reaction Formula
+46176|Neo Mercurite Reaction Formula
+46177|Platinum Technite Reaction Formula
+46178|Rolled Tungsten Alloy Reaction Formula
+46179|Silicon Diborite Reaction Formula
+46180|Solerium Reaction Formula
+46181|Sulfuric Acid Reaction Formula
+46182|Titanium Chromide Reaction Formula
+46183|Vanadium Hafnite Reaction Formula
+46184|Prometium Reaction Formula
+46185|Thulium Hafnite Reaction Formula
+46186|Promethium Mercurite Reaction Formula
+46222|Standard Frentix Booster Reaction Formula
+46223|Standard Drop Booster Reaction Formula
+46224|Standard Exile Booster Reaction Formula
+46225|Standard Mindflood Booster Reaction Formula
+46226|Standard X-Instinct Booster Reaction Formula
+46227|Standard Sooth Sayer Booster Reaction Formula
+46230|Standard Blue Pill Booster Reaction Formula
+46231|Standard Crash Booster Reaction Formula
+46236|Improved Crash Booster Reaction Formula
+46237|Improved Drop Booster Reaction Formula
+46238|Improved Exile Booster Reaction Formula
+46240|Improved Mindflood Booster Reaction Formula
+46241|Improved Frentix Booster Reaction Formula
+46242|Improved X-Instinct Booster Reaction Formula
+46243|Improved Sooth Sayer Booster Reaction Formula
+46251|Improved Blue Pill Booster Reaction Formula
+
+I defined 'subreaction' as a reactiont that can be donemyself who's product is used in a future reaction
+'superreaction' is a reaction that is produced using materials that come from a subreaction
+
+SUPERREACTION:
+    
+SELECT DISTINCT prods.productTypeID, typeName from reaction_products prods 
+    JOIN reaction_materials mats ON mats.typeid=prods.typeid
+    JOIN sde.invTypes on sde.invTypes.typeID=prods.productTypeID
+    WHERE materialTypeID IN (SELECT productTypeID from reaction_products);
+
+SUBREACTION:
+SELECT DISTINCT prods.productTypeID, typeName from reaction_products prods
+    JOIN sde.invTypes on sde.invTypes.typeID=prods.productTypeID
+    WHERE productTypeID IN (SELECT materialTypeID from reaction_materials);
+
+I've got 80% confidence that this is the correct line of thinking.
