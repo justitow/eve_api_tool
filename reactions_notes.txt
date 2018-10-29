@@ -638,4 +638,64 @@ That is not working as intended. For some reason, ferrogel and a few other react
 
 I need to try phrasing this differently
 
+How exactly.... not sure
+
+
+I still don't understand what is causing all of the reactions to pop up. 
+I thought that that command should just pull the materials that aren't associated with subreactions. Instead, it seems to be pulling the reactions that use subreactions as materials as well as the ones that aren't associated with them.
+
+Solution: use more subqueries?
+
+...but like, how?
+
+
+SELECT SDE.industryActivity.typeID, typeName from SDE.industryActivity
+    JOIN sde.invTypes ON sde.invTypes.typeID=SDE.industryActivity.typeID
+    WHERE SDE.industryActivity.typeID IN (SELECT typeID from reaction_materials 
+        WHERE materialTypeID NOT IN 
+        (SELECT productTypeID FROM SDE.industryActivityProducts WHERE activityID=11))
+    AND SDE.industryActivity.typeID IN (SELECT typeID FROM reaction_products
+        WHERE productTypeID NOT IN
+        (SELECT materialTypeID FROM SDE.industryActivityMaterials WHERE activityID=11))
+    AND activityID=11;
+
+
+Okay, lets look at Ferrogel
+
+SELECT materialTypeID, typeName FROM reaction_materials JOIN SDE.invTypes ON SDE.invTypes.typeID=materialTypeID WHERE reaction_materials.typeID=46213;
+
+materialTypeID|typeName
+4246|Hydrogen Fuel Block
+16665|Hexite
+16666|Hyperflurite
+16669|Ferrofluid
+17960|Prometium
+
+
+SELECT productTypeID, typeName FROM reaction_products JOIN SDE.invTypes ON SDE.invTypes.typeID=productTypeID WHERE reaction_products.typeID=46213;
+
+productTypeID|typeName
+16683|Ferrogel
+
+
+Okay, so I know that Ferrogel won't be in the materials
+But why aren't the materials showing up in the products?
+
+SELECT typeID FROM reaction_products WHERE productTypeID=16665;
+
+
+WAIT, its finding any isntance where the materialTypeID is not a product, not that ALL materialTypeID's aren't products (so like, returninga false positive on fuel blocks)
+
+So I might want to use the ANY/ALL keywords?   
+That might not exist in SQLite...
+I can probably use COUNT
+
+
+SELECT reaction_materials.typeID, typeName FROM reaction_materials m_outer
+    JOIN sde.invTypes ON sde.invTypes.typeid=m_outer.typeID
+    WHERE (SELECT COUNT(*) FROM reaction_products WHERE productTypeID IN (SELECT materialTypeID FROM reaction_materials m_inner WHERE m_outer.typeID=m_inner.typeID))>0; 
+
+This doesn't work becuase its still not grouping the materials and checking the products
+
+
 
