@@ -586,7 +586,10 @@ For subreaction:
 I defined 'subreaction' as a reactiont that can be donemyself who's product is used in a future reaction
 'superreaction' is a reaction that is produced using materials that come from a subreaction
 
-SUPERREACTION:
+1.) 
+SELECT DISTINCT materialTypeID from reaction_materials
+    JOIN reaction_products ON reaction_materials.typeid=reaction_products.typeid
+    WHERE productTypeID NOT IN (select materialTypeID from reaction_materials);
     
 SELECT DISTINCT prods.productTypeID, typeName from reaction_products prods 
     JOIN reaction_materials mats ON mats.typeid=prods.typeid
@@ -598,4 +601,41 @@ SELECT DISTINCT prods.productTypeID, typeName from reaction_products prods
     JOIN sde.invTypes on sde.invTypes.typeID=prods.productTypeID
     WHERE productTypeID IN (SELECT materialTypeID from reaction_materials);
 
-I've got 80% confidence that this is the correct line of thinking.
+
+I want
+
+0.) reactions whos materials are not products and whos products are not materials
+1.) Reactions whos materials are not products and whos products are materials
+2.) reactions whos materials are products and whos products are materials
+3.) Reactions whos materials are products and whos products are not materials
+
+
+0.) 
+SELECT DISTINCT materialTypeID from reaction_materials
+    JOIN reaction_products ON reaction_products.typeID=reaction_materials.typeID);
+
+count of total from ^ query is 98. total reactions is 95. just realized there is issue with that join
+
+
+Thoughts are, if thereis only one product for each reaction, then I can just join the products onto the reactions by typeid
+
+Cool, I got all 1's
+So yes, can just join it that way
+
+0.) 
+SELECT DISTINCT materialTypeID FROM reaction_materials mats
+    JOIN reaction_products prods ON prods.typeID=mats.typeID
+    WHERE materialTypeID NOT IN (SELECT productTypeID from reaction_products)
+    AND productTypeID NOT IN (SELECT materialTypeID from reaction_products);
+
+SELECT DISTINCT mats.typeID, typeName FROM reaction_materials mats
+    JOIN reaction_products prods ON prods.typeID=mats.typeID
+    JOIN SDE.invTypes ON SDE.invTypes.typeID=mats.materialTypeID
+    WHERE (materialTypeID NOT IN (SELECT productTypeID from reaction_products))
+    AND (productTypeID NOT IN (SELECT materialTypeID from reaction_materials));
+That is not working as intended. For some reason, ferrogel and a few other reactions like that are being pulled with this query
+
+
+I need to try phrasing this differently
+
+

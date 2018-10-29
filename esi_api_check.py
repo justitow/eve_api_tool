@@ -78,8 +78,7 @@ def fetch_market_data(cur):
     else:
         results = api.client.request(operations[0])
     #print(results)
-    return results
-    
+    insert_market_info(results, cur)    
 #def fetch_market_history(
     
 def initialize_database():
@@ -89,7 +88,7 @@ def initialize_database():
     cur.execute("ATTACH DATABASE 'sde.sqlite' AS sde")
     return cur
     
-def insert_info_results(results, cur):
+def insert_market_info(results, cur):
     print('inserting')
     cur.execute("DELETE FROM market_info")
     cur.execute('BEGIN TRANSACTION')
@@ -140,25 +139,18 @@ class API:
             )
         
 
-
-
-    
-    
-
-    
-
+# I want this as a global each time the program is run.        
+api = API() #if the swagger information is older than a day, it will re-request it from the server
 
 if __name__=="__main__":
     
     #esi_app, app, client = initialize_api_handlers()
     
-    api = API()
+    #api = API()
     
     cur = initialize_database()
     
-    # results = fetch_market_data(cur)
-    # insert_info_results(results, cur)
-    
+    fetch_market_data(cur)
     
     
     print('working')
