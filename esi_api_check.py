@@ -143,14 +143,9 @@ class API:
 api = API() #if the swagger information is older than a day, it will re-request it from the server
 
 if __name__=="__main__":
-    
-    #esi_app, app, client = initialize_api_handlers()
-    
-    #api = API()
-    
     cur = initialize_database()
     
-    fetch_market_data(cur)
+    #fetch_market_data(cur)
     
     
     print('working')
