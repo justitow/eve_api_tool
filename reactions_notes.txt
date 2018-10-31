@@ -697,11 +697,11 @@ SELECT reaction_materials.typeID, typeName FROM reaction_materials m_outer
 
 This doesn't work becuase its still not grouping the materials and checking the products
 
-SELECT invt.typeName, invt.typeID
+SELECT invt.typeID --, invt.typeName
 FROM SDE.industryActivity actv
 JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
 WHERE actv.activityID=11
-AND 0 != (
+AND 0 = (
 	SELECT COUNT(*) 
 	FROM (
 		SELECT * 
@@ -747,3 +747,87 @@ from the !=, !=, I also can see that other than the boosters, there aren't any s
 3.) ('!=', '!=')
 4.) ('!=', '=')
 
+Okay, so this gets me all of the reactions in each partition.
+But now I want to seperate the materials for each reaction
+
+
+SELECT DISTINCT materialTypeID
+FROM reaction_materials
+WHERE typeID IN (
+	SELECT invt.typeID --, invt.typeName
+	FROM SDE.industryActivity actv
+	JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
+	WHERE actv.activityID=11
+	AND 0 != (
+		SELECT COUNT(*) 
+		FROM (
+			SELECT * 
+			FROM reaction_materials mats 
+			WHERE mats.typeid=actv.typeid
+			AND mats.materialTypeID IN (
+				SELECT productTypeID
+				FROM reaction_products
+			)
+		)
+	)
+	AND 0 != (
+		SELECT COUNT(*) 
+		FROM (
+			SELECT * 
+			FROM reaction_products prod 
+			WHERE prod.typeid=actv.typeid
+			AND prod.productTypeID IN (
+				SELECT materialTypeID
+				FROM reaction_materials
+			)
+		)
+	)
+)
+AND materialTypeID NOT IN (SELECT type_id FROM best_materials);
+
+== 43
+=!= 33
+!== 42
+!=!= 14
+cacled total: 132
+acutal toatl: 98
+
+CREATE TABLE best_materials
+(
+    type_id INTEGER,
+    price FLOAT,
+    volume INTEGER,
+    buy_or_sell INTEGER,
+    location TEXT, -- not sure about this one
+    time_cost INTEGER
+);
+
+CREATE 
+
+At the first stage, when I calculate the price to product the product, I am probably going to want to stick that in the market_info? For materials? I think I'm getting myself confued.
+
+So what is going to happen when I calculate the values?
+-for each partition
+	-create a python list of the reactionID's 
+	-create a python list of the reaction materials
+	-for each of the materials in the list, find the best price to obtain the material from the market_info table, place that in the best_cost_to_obtain
+		-represents the cheapest way to obtain the item
+		-there should just be one entry per material in the best_materials table.
+	-for each reaction calculate the cost to produce the item based on the best_cost(to_obtain) table
+	-place these costs to obtain in the market_info table with the system_id set to a custom value
+-obtain a list of the product ID's that are not already in the best_cost_to_obtain
+-find the best cost to obtain, place it into the best_cost_to_obtain table.
+-for each material in the products list find the best cost to sell
+	-uses the market_info, but with the buy order set to false
+	-calculate the profit, place it in the profits table.
+	
+SELECT * FROM market_info WHERE type_id=16655 AND is_buy_order=0 ORDER BY price, system_id ASC;
+
+	a.) I get the list of systems
+		For each system, I query the db for the prices and volume
+		I take the minimum of the total price for the system
+		I place the smalled on the in best_cost_to_obtain table
+	b.) I write a query that takes the min of regions and do the calculations in SQL.
+	
+
+SELECT systemID, MIN(cost_sum) FROM (SELECT system_id, SUM(cost) FROM );

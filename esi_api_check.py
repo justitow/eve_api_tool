@@ -114,10 +114,46 @@ def chunks(data, rows=10000):
     for i in range(0, len(data), rows):
         yield data[i:i+rows]
         
-def partition_and_evaluate_reaction_costs(cur):
-    modes = [('=', '=',), ('!=', '=',), ('!=', '!=',), ('=', '!=',)]
-    for mode in modes:
+
+    
         
+def partition_and_evaluate_reaction_costs(cur):
+    modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',))
+    for mode in modes:
+        sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
+                                    FROM SDE.industryActivity actv
+                                    JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
+                                    WHERE actv.activityID=11
+                                    AND 0 '''+mode[0]+''' (
+                                        SELECT COUNT(*) 
+                                        FROM (
+                                            SELECT * 
+                                            FROM reaction_materials mats 
+                                            WHERE mats.typeid=actv.typeid
+                                            AND mats.materialTypeID IN (
+                                                SELECT productTypeID
+                                                FROM reaction_products
+                                            )
+                                        )
+                                    )
+                                    AND 0 '''+mode[1]+''' (
+                                        SELECT COUNT(*) 
+                                        FROM (
+                                            SELECT * 
+                                            FROM reaction_products prod 
+                                            WHERE prod.typeid=actv.typeid
+                                            AND prod.productTypeID IN (
+                                                SELECT materialTypeID
+                                                FROM reaction_materials
+                                            )
+                                        )
+                                    )'''
+        cur.execute(sql_reaction_id_string + ';')
+        reactionIDs = cur.fetchall()
+        cur.execute('SELECT DISTINCT materialTypeID FROM reaction_materials WHERE typeID IN (' + sql_reaction_id_string + ') AND materialTypeID NOT IN (SELECT type_id FROM best_materials);')
+        materialIDs = cur.fetchall()
+        print(reactionIDs)
+        print(materialIDs)
 
 class API:
     def __init__(self):
@@ -152,6 +188,6 @@ if __name__=="__main__":
     
     #fetch_market_data(cur)
     
-    
+    partition_and_evaluate_reaction_costs(cur)
     print('working')
     #print(results)
