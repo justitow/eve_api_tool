@@ -697,5 +697,53 @@ SELECT reaction_materials.typeID, typeName FROM reaction_materials m_outer
 
 This doesn't work becuase its still not grouping the materials and checking the products
 
+SELECT invt.typeName, invt.typeID
+FROM SDE.industryActivity actv
+JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
+WHERE actv.activityID=11
+AND 0 != (
+	SELECT COUNT(*) 
+	FROM (
+		SELECT * 
+		FROM reaction_materials mats 
+		WHERE mats.typeid=actv.typeid
+		AND mats.materialTypeID IN (
+			SELECT productTypeID
+			FROM reaction_products
+		)
+	)
+)
+AND 0 = (
+	SELECT COUNT(*) 
+	FROM (
+		SELECT * 
+		FROM reaction_products prod 
+		WHERE prod.typeid=actv.typeid
+		AND prod.productTypeID IN (
+			SELECT materialTypeID
+			FROM reaction_materials
+		)
+	)
+);
 
+
+This will work with permutations of the 0's
+I do want to double check with a count first though
+
+(=,=) -> 34
+(!=, !=) -> 8
+(=, !=) -> 29
+(!=, =) -> 24
+Total -> 95
+
+Total COUNT -> 95
+Okay, checks out.
+
+I want to put that out into a function and just replace the "!=" and "=" for the four iteration
+from the !=, !=, I also can see that other than the boosters, there aren't any sub-sub reactions.
+
+1.) ('=', '=')
+2.) ('=', '!=')
+3.) ('!=', '!=')
+4.) ('!=', '=')
 

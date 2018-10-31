@@ -113,6 +113,11 @@ def insert_market_info(results, cur):
 def chunks(data, rows=10000):
     for i in range(0, len(data), rows):
         yield data[i:i+rows]
+        
+def partition_and_evaluate_reaction_costs(cur):
+    modes = [('=', '=',), ('!=', '=',), ('!=', '!=',), ('=', '!=',)]
+    for mode in modes:
+        
 
 class API:
     def __init__(self):
