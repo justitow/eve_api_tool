@@ -828,6 +828,36 @@ SELECT * FROM market_info WHERE type_id=16655 AND is_buy_order=0 ORDER BY price,
 		I take the minimum of the total price for the system
 		I place the smalled on the in best_cost_to_obtain table
 	b.) I write a query that takes the min of regions and do the calculations in SQL.
-	
 
-SELECT systemID, MIN(cost_sum) FROM (SELECT system_id, SUM(cost) FROM );
+SELECT system_id, MIN(cost_sum) FROM (SELECT system_id, SUM(PRICE) AS COST_SUM FROM market_info WHERE type_id=16665 AND is_buy_order=0 GROUP BY SYSTEM_ID) GROUP BY system_id;
+SELECT system_id, MAX(price) FROM market_info WHERE type_id=16665 AND is_buy_order=1 GROUP BY system_id ORDER BY price ASC;
+
+Its not really easy enough to select a granular minimum volume of materials with just a sql query.
+I want to
+	-for each material
+		-for each market
+			-fetch all prices and volumes ordered by price, asc
+			-find the price for the minimum specified ammount of material (if self, do I make numbers for volume set?)
+			-how will my minimum product ammount be set?
+		-from this list, find best markets
+		
+	-orrr, find the cheapest places to buy until I reach the minimum required material
+	- I can work in the ability to do both by selecting the MAX of the (SUM grouped by systemID)
+	- So if I have multi-system gathering enabled, then it will place multiple rows to the best-buy table
+	
+	liquidate
+	purchase
+	selling
+	seller
+	buyer
+	sell
+	buy
+	obtain
+	bought
+	sold
+	remove
+	deposit
+	minprice
+	maxprice
+	
+	might do best minprice and best maxprice	

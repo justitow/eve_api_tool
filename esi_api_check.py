@@ -186,8 +186,8 @@ api = API() #if the swagger information is older than a day, it will re-request 
 if __name__=="__main__":
     cur = initialize_database()
     
-    #fetch_market_data(cur)
+    fetch_market_data(cur)
     
-    partition_and_evaluate_reaction_costs(cur)
+    #partition_and_evaluate_reaction_costs(cur)
     print('working')
     #print(results)
