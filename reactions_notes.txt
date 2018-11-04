@@ -702,28 +702,28 @@ FROM SDE.industryActivity actv
 JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
 WHERE actv.activityID=11
 AND 0 = (
-	SELECT COUNT(*) 
-	FROM (
-		SELECT * 
-		FROM reaction_materials mats 
-		WHERE mats.typeid=actv.typeid
-		AND mats.materialTypeID IN (
-			SELECT productTypeID
-			FROM reaction_products
-		)
-	)
+    SELECT COUNT(*) 
+    FROM (
+        SELECT * 
+        FROM reaction_materials mats 
+        WHERE mats.typeid=actv.typeid
+        AND mats.materialTypeID IN (
+            SELECT productTypeID
+            FROM reaction_products
+        )
+    )
 )
 AND 0 = (
-	SELECT COUNT(*) 
-	FROM (
-		SELECT * 
-		FROM reaction_products prod 
-		WHERE prod.typeid=actv.typeid
-		AND prod.productTypeID IN (
-			SELECT materialTypeID
-			FROM reaction_materials
-		)
-	)
+    SELECT COUNT(*) 
+    FROM (
+        SELECT * 
+        FROM reaction_products prod 
+        WHERE prod.typeid=actv.typeid
+        AND prod.productTypeID IN (
+            SELECT materialTypeID
+            FROM reaction_materials
+        )
+    )
 );
 
 
@@ -754,34 +754,34 @@ But now I want to seperate the materials for each reaction
 SELECT DISTINCT materialTypeID
 FROM reaction_materials
 WHERE typeID IN (
-	SELECT invt.typeID --, invt.typeName
-	FROM SDE.industryActivity actv
-	JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
-	WHERE actv.activityID=11
-	AND 0 != (
-		SELECT COUNT(*) 
-		FROM (
-			SELECT * 
-			FROM reaction_materials mats 
-			WHERE mats.typeid=actv.typeid
-			AND mats.materialTypeID IN (
-				SELECT productTypeID
-				FROM reaction_products
-			)
-		)
-	)
-	AND 0 != (
-		SELECT COUNT(*) 
-		FROM (
-			SELECT * 
-			FROM reaction_products prod 
-			WHERE prod.typeid=actv.typeid
-			AND prod.productTypeID IN (
-				SELECT materialTypeID
-				FROM reaction_materials
-			)
-		)
-	)
+    SELECT invt.typeID --, invt.typeName
+    FROM SDE.industryActivity actv
+    JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
+    WHERE actv.activityID=11
+    AND 0 != (
+        SELECT COUNT(*) 
+        FROM (
+            SELECT * 
+            FROM reaction_materials mats 
+            WHERE mats.typeid=actv.typeid
+            AND mats.materialTypeID IN (
+                SELECT productTypeID
+                FROM reaction_products
+            )
+        )
+    )
+    AND 0 != (
+        SELECT COUNT(*) 
+        FROM (
+            SELECT * 
+            FROM reaction_products prod 
+            WHERE prod.typeid=actv.typeid
+            AND prod.productTypeID IN (
+                SELECT materialTypeID
+                FROM reaction_materials
+            )
+        )
+    )
 )
 AND materialTypeID NOT IN (SELECT type_id FROM best_materials);
 
@@ -808,56 +808,57 @@ At the first stage, when I calculate the price to product the product, I am prob
 
 So what is going to happen when I calculate the values?
 -for each partition
-	-create a python list of the reactionID's 
-	-create a python list of the reaction materials
-	-for each of the materials in the list, find the best price to obtain the material from the market_info table, place that in the best_cost_to_obtain
-		-represents the cheapest way to obtain the item
-		-there should just be one entry per material in the best_materials table.
-	-for each reaction calculate the cost to produce the item based on the best_cost(to_obtain) table
-	-place these costs to obtain in the market_info table with the system_id set to a custom value
+    -create a python list of the reactionID's 
+    -create a python list of the reaction materials
+    -for each of the materials in the list, find the best price to obtain the material from the market_info table, place that in the best_cost_to_obtain
+        -represents the cheapest way to obtain the item
+        -there should just be one entry per material in the best_materials table.
+    -for each reaction calculate the cost to produce the item based on the best_cost(to_obtain) table
+    -place these costs to obtain in the market_info table with the system_id set to a custom value
 -obtain a list of the product ID's that are not already in the best_cost_to_obtain
 -find the best cost to obtain, place it into the best_cost_to_obtain table.
 -for each material in the products list find the best cost to sell
-	-uses the market_info, but with the buy order set to false
-	-calculate the profit, place it in the profits table.
-	
+    -uses the market_info, but with the buy order set to false
+    -calculate the profit, place it in the profits table.
+    
 SELECT * FROM market_info WHERE type_id=16655 AND is_buy_order=0 ORDER BY price, system_id ASC;
 
-	a.) I get the list of systems
-		For each system, I query the db for the prices and volume
-		I take the minimum of the total price for the system
-		I place the smalled on the in best_cost_to_obtain table
-	b.) I write a query that takes the min of regions and do the calculations in SQL.
+    a.) I get the list of systems
+        For each system, I query the db for the prices and volume
+        I take the minimum of the total price for the system
+        I place the smalled on the in best_cost_to_obtain table
+    b.) I write a query that takes the min of regions and do the calculations in SQL.
 
 SELECT system_id, MIN(cost_sum) FROM (SELECT system_id, SUM(PRICE) AS COST_SUM FROM market_info WHERE type_id=16665 AND is_buy_order=0 GROUP BY SYSTEM_ID) GROUP BY system_id;
 SELECT system_id, MAX(price) FROM market_info WHERE type_id=16665 AND is_buy_order=1 GROUP BY system_id ORDER BY price ASC;
 
 Its not really easy enough to select a granular minimum volume of materials with just a sql query.
 I want to
-	-for each material
-		-for each market
-			-fetch all prices and volumes ordered by price, asc
-			-find the price for the minimum specified ammount of material (if self, do I make numbers for volume set?)
-			-how will my minimum product ammount be set?
-		-from this list, find best markets
-		
-	-orrr, find the cheapest places to buy until I reach the minimum required material
-	- I can work in the ability to do both by selecting the MAX of the (SUM grouped by systemID)
-	- So if I have multi-system gathering enabled, then it will place multiple rows to the best-buy table
-	
-	liquidate
-	purchase
-	selling
-	seller
-	buyer
-	sell
-	buy
-	obtain
-	bought
-	sold
-	remove
-	deposit
-	minprice
-	maxprice
-	
-	might do best minprice and best maxprice	
+    -for each material
+        -for each market
+            -fetch all prices and volumes ordered by price, asc
+            -find the price for the minimum specified ammount of material (if self, do I make numbers for volume set?)
+            -how will my minimum product ammount be set?
+        -from this list, find best markets
+        
+    -orrr, find the cheapest places to buy until I reach the minimum required material
+    - I can work in the ability to do both by selecting the MAX of the (SUM grouped by systemID)
+    - So if I have multi-system gathering enabled, then it will place multiple rows to the best-buy table
+    
+liquidate
+purchase
+selling
+seller
+buyer
+sell
+buy
+obtain
+bought
+sold
+remove
+deposit
+minprice
+maxprice
+    
+might do best minprice and best maxprice    
+
