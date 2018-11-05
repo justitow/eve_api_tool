@@ -56,11 +56,25 @@ def to_sql_datetime(in_date):
     outstring = str(in_date.year)+'-'+str(in_date.month)+'-'+str(in_date.day)+' '+str(in_date.hour)+':'+str(in_date.minute) + ':' + str(in_date.second) 
     return outstring
 def fetch_market_data(cur):
-    cur.execute("SELECT DISTINCT materialTypeID FROM reaction_materials WHERE materialTypeID NOT IN (SELECT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products))")
+    cur.execute(''' SELECT DISTINCT materialTypeID 
+                    FROM reaction_materials 
+                    WHERE materialTypeID NOT IN (
+                        SELECT DISTINCT productTypeID 
+                        FROM reaction_products
+                    )''')
     materials=cur.fetchall()
-    cur.execute("SELECT DISTINCT productTypeID FROM reaction_products WHERE productTypeID NOT IN (SELECT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products))")
+    cur.execute(''' SELECT DISTINCT productTypeID 
+                    FROM reaction_products 
+                    WHERE productTypeID NOT IN (
+                        SELECT productTypeID FROM reaction_products
+                    )''')
     products=cur.fetchall()
-    cur.execute("SELECT DISTINCT materialTypeID FROM reaction_materials WHERE materialTypeID IN (SELECT productTypeID FROM reaction_products)")
+    cur.execute(''' SELECT DISTINCT materialTypeID 
+                    FROM reaction_materials 
+                    WHERE materialTypeID IN (
+                        SELECT productTypeID 
+                        FROM reaction_products
+                    )''')
     both = cur.fetchall()
     
     operations = []
@@ -114,46 +128,67 @@ def chunks(data, rows=10000):
     for i in range(0, len(data), rows):
         yield data[i:i+rows]
         
+def retrieve_partitioned_material_ids(cur, mode):
+    sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
+                                FROM SDE.industryActivity actv
+                                JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
+                                WHERE actv.activityID=11
+                                AND 0 '''+mode[0]+''' (
+                                    SELECT COUNT(*) 
+                                    FROM (
+                                        SELECT * 
+                                        FROM reaction_materials mats 
+                                        WHERE mats.typeid=actv.typeid
+                                        AND mats.materialTypeID IN (
+                                            SELECT productTypeID
+                                            FROM reaction_products
+                                        )
+                                    )
+                                )
+                                AND 0 '''+mode[1]+''' (
+                                    SELECT COUNT(*) 
+                                    FROM (
+                                        SELECT * 
+                                        FROM reaction_products prod 
+                                        WHERE prod.typeid=actv.typeid
+                                        AND prod.productTypeID IN (
+                                            SELECT materialTypeID
+                                            FROM reaction_materials
+                                        )
+                                    )
+                                )'''
+    cur.execute(sql_reaction_id_string + ';')
+    reactionIDs =  cur.fetchall()
 
+    cur.execute(''' SELECT DISTINCT materialTypeID
+                    FROM reaction_materials
+                    WHERE typeID IN ( ''' 
+                    + sql_reaction_id_string + 
+                ''') AND materialTypeID NOT IN
+                        (SELECT type_id 
+                        FROM best_price 
+                        WHERE min_price = 1);''')
+    materialIDs = cur.fetchall()
+
+    return reactionIDs, materialIDs
     
         
 def partition_and_evaluate_reaction_costs(cur):
     modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',))
     for mode in modes:
-        sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
-                                    FROM SDE.industryActivity actv
-                                    JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
-                                    WHERE actv.activityID=11
-                                    AND 0 '''+mode[0]+''' (
-                                        SELECT COUNT(*) 
-                                        FROM (
-                                            SELECT * 
-                                            FROM reaction_materials mats 
-                                            WHERE mats.typeid=actv.typeid
-                                            AND mats.materialTypeID IN (
-                                                SELECT productTypeID
-                                                FROM reaction_products
-                                            )
-                                        )
-                                    )
-                                    AND 0 '''+mode[1]+''' (
-                                        SELECT COUNT(*) 
-                                        FROM (
-                                            SELECT * 
-                                            FROM reaction_products prod 
-                                            WHERE prod.typeid=actv.typeid
-                                            AND prod.productTypeID IN (
-                                                SELECT materialTypeID
-                                                FROM reaction_materials
-                                            )
-                                        )
-                                    )'''
-        cur.execute(sql_reaction_id_string + ';')
-        reactionIDs = cur.fetchall()
-        cur.execute('SELECT DISTINCT materialTypeID FROM reaction_materials WHERE typeID IN (' + sql_reaction_id_string + ') AND materialTypeID NOT IN (SELECT type_id FROM best_materials);')
-        materialIDs = cur.fetchall()
-        print(reactionIDs)
-        print(materialIDs)
+        reactionIDs, materialIDs = retrieve_partitioned_material_ids(cur, mode)
+        for materialID in materialIDs:
+            cur.execute('''SELECT type_id, system_id, price, volume_remain
+                           FROM market_info
+                           WHERE type_id=?
+                           AND is_buy_order=0
+                           ORDER BY price ASC''', (materialID[0],) )
+            market_orders = cur.fetchall()
+
+            total_volume = 0
+
+            for market_order in market_orders:
+                print(market_order)
 
 class API:
     def __init__(self):
@@ -182,12 +217,12 @@ class API:
 
 # I want this as a global each time the program is run.        
 api = API() #if the swagger information is older than a day, it will re-request it from the server
+min_material = 100000
 
 if __name__=="__main__":
     cur = initialize_database()
     
-    fetch_market_data(cur)
-    
-    #partition_and_evaluate_reaction_costs(cur)
+    # fetch_market_data(cur)
+    partition_and_evaluate_reaction_costs(cur)
     print('working')
     #print(results)

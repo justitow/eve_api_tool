@@ -862,3 +862,56 @@ maxprice
     
 might do best minprice and best maxprice    
 
+DROP TABLE BEST_PRICE;
+CREATE TABLE best_price
+(
+    type_id INTEGER,
+    price FLOAT,
+    volume INTEGER,
+    min_price INTEGER,
+    location_id INTEGER, -- not sure about this one 
+    time INTEGER
+);
+
+SELECT price, system_id, volume_remain
+    FROM market_info 
+    WHERE type_id=4246
+    AND is_buy_order=0
+    ORDER BY price ASC;
+
+I have a bit of an issue here. When I am collecting the minimum value, if I have to deal with multiple places, I don't know how to collect them all in a structure.
+-> I think I will use a dictionary and add the volume_count to each entry by price
+
+Do I want to add up the minimum ammount, or just round up with the total number of reactants. With each volume chunk? ((I think round up))
+
+How do I deal with the volume from a self-produced? 
+    The region_id will be null for those 
+
+INSERT INTO best_price (type_id, price, min_price, system_id) VALUES (?,?,1,?)
+I'm being thrown off somewhere in the process of readding stuff to the tables, but I'm not really sure where.
+
+Okay, I think for now, I just want to do it by region.
+
+maybe a seperate table for production_cost?
+I'm gonna scrap most of what is threre, and do two sql statements
+
+What about having a seperate table for production cost? why would I do this?
+
+This doesn't deal with the case in which its cheaper to buy some amount and then react for the rest.
+
+
+For the market info, I think I can just
+SELECT COUNT() FROM (SELECT DISTINCT productTypeID 
+FROM reaction_products 
+WHERE productTypeID NOT IN (
+    SELECT DISTINCT materialTypeID 
+    FROM reaction_materials
+));
+
+SELECT COUNT() FROM (SELECT DISTINCT productTypeID FROM reaction_products WHERE productTypeID IN (SELECT materialTypeID FROM reaction_materials));
+
+COUNT materials = 61
+COUNT products = 57
+count BOTH = 37
+
+k yeah, my original was overly complicated
