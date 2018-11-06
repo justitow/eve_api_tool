@@ -919,33 +919,33 @@ k yeah, my original was overly complicated
 Still on the question though -> where do I put the order information for products/materials that I produce myself?
 Should it be stored in a database between runs of the sql program?
 Should it just be part of a python data structure untill everything has been processed?
-	- I feel like this may be the best way to do it.
-	- Have a 'final best' in a dictionary
+    - I feel like this may be the best way to do it.
+    - Have a 'final best' in a dictionary
 How will it be stored though? 
-	-One row for each station that I get the material from?
-	-One row for each material?
-		-I don't think this would work because I want to have the location infromation easily accessible.
+    -One row for each station that I get the material from?
+    -One row for each material?
+        -I don't think this would work because I want to have the location infromation easily accessible.
 
 *** I CAN ADD A COULUMN TO MARKET_INFO for best price****
-	-Add a "best price" column to market_info
-	
+    -Add a "best price" column to market_info
+    
 CREATE TABLE material_cost (
-	type_id INTEGER,
-	cost FLOAT,
-	time INTEGER,
-	self_produced INTEGER
-	);
-	
+    type_id INTEGER,
+    cost FLOAT,
+    time INTEGER,
+    self_produced INTEGER
+    );
+    
 Having a weird issue:
-	9850|427.665430558032|0|0
-	9850||0|0
-	
-	25335|3287074.7777551|0|0
-	25335||0|0
-	
-	25341|313211.192676906|0|0
-	25341||0|0
-	
+    9850|427.665430558032|0|0
+    9850||0|0
+    
+    25335|3287074.7777551|0|0
+    25335||0|0
+    
+    25341|313211.192676906|0|0
+    25341||0|0
+    
 In the instances where I'm not finding a market sell order, i'm getting duplicates in my material_cost table
 
 This was happening because the typeID I was getting was in the for-loop for the marketinfo orders. If there were no market_orders for a given item, 
@@ -959,13 +959,44 @@ Should I do some sort of work for the maximum ammount? Possibly, but I'll implem
 Do I want the sell-price to be similar to the function of the buy price?
 yeh, probs
 
-DROP TABLE product_cost;
-CREATE TABLE product_cost (
+DROP TABLE product_gross;
+CREATE TABLE product_gross (
         type_id INTEGER,
-        production_cost FLOAT,
-		buy_price FLOAT,
-		sell_price FLOAT
+        sell_price FLOAT,
+        product_count INTEGER
 );
 
+DROP TABLE reaction_margins;
+CREATE TABLE reaction_margins(
+    product_type_id INTEGER,
+    obtain_price FLOAT,
+    sell_price FLOAT,
+    margin FLOAT,
+    count INTEGER
+);
 
-Okay, I will make a new row in
+SELECT typeName, typeID, margins
+FROM reaction_margins
+JOIN SDE.invtypes ON typeID=product_type_id
+ORDER BY margins DESC;
+
+DROP TABLE material_cost;
+    CREATE TABLE material_cost (
+    type_id INTEGER,
+    cost FLOAT,
+    time INTEGER,
+    self_produced INTEGER,
+    count INTEGER
+    );
+
+sqlite> SELECT * FROM reaction_margins WHERE count IS NULL;
+16666|41599.9|38182.11|-3417.78999999999|
+16664|16950.3691282218|16913.5|-36.8691282218315|
+25333|83991.5169320296|21817.5874372587|-62173.9294947709|
+25334|280012.392241379|45030.8889824854|-234981.503258894|
+25340|349999.988364566|55000.99|-294998.998364566|
+25341|313211.192676906|75000.02|-238211.172676906|
+sqlite> 
+
+
+THis is happening, because the table is not always recieving a count (when its cheaper to buy than to self-product)
