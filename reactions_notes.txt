@@ -971,9 +971,7 @@ CREATE TABLE reaction_margins(
     product_type_id INTEGER,
     obtain_price FLOAT,
     sell_price FLOAT,
-    margin FLOAT,
-    count INTEGER
-);
+    margin FLOAT);
 
 SELECT typeName, typeID, margins
 FROM reaction_margins
@@ -985,8 +983,7 @@ DROP TABLE material_cost;
     type_id INTEGER,
     cost FLOAT,
     time INTEGER,
-    self_produced INTEGER,
-    count INTEGER
+    self_produced INTEGER
     );
 
 sqlite> SELECT * FROM reaction_margins WHERE count IS NULL;
@@ -1000,3 +997,5 @@ sqlite>
 
 
 THis is happening, because the table is not always recieving a count (when its cheaper to buy than to self-product)
+
+Do I want to do a recursion for the sub-reactions?

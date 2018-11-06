@@ -6,6 +6,8 @@ import os
 from datetime import date, time, datetime, timedelta
 import sqlite3
 import time
+from pyfiglet import figlet_format
+
 
 ########## DOES WEIRD STUFF DON'T REMOVE ###########################################
 try:
@@ -329,13 +331,68 @@ def evaluate_reaction_margins(cur):
                         (productID, product_investment*product_count, product_gross*product_count, margin*product_count))
     cur.execute('END TRANSACTION;')
 
-def display_top_margins(cur):
-    cur.execute(''' SELECT product_type_id, margin, obtain_price, sell_price
-                    FROM reaction_margins
-                    WHERE margin > 0
-                    ORDER BY margin DESC;''')
+def find_recipe(cur, product_id):
+    cur.execute(''' SELECT typeID
+                    FROM reaction_products
+                    WHERE productTypeID=?;''', (product_id,))
+    reactionTypeID = cur.fetchall()[0][0]
+    cur.execute(''' SELECT materialTypeID, quantity
+                    FROM reaction_materials
+                    WHERE typeID=?;''', (reactionTypeID,))
+    materials = cur.fetchall()
+    recipe = {}
+    print('')
+    print(figlet_format(str(product_id), font='starwars'))
+    print(id_to_name(cur, product_id), '\n')
+    print('*--------------------------------------------------*')
+    for material in materials:
+        materialID = material[0]
+        materialQuantity = material[1]
 
-    top_margins = cur.fetchall()
+        cur.execute(''' SELECT MIN(COST), self_produced
+                        FROM material_cost
+                        WHERE type_id=?;''', (materialID,))
+        mat_cost = cur.fetchall()
+        material_cost = mat_cost[0][0]
+        material_self_produced = mat_cost[0][1]
+        print(id_to_name(cur,materialID), 'x' + str(materialQuantity), mat_cost)
+        if material_self_produced:
+            cur.execute(''' SELECT typeID
+                            FROM reaction_products
+                            WHERE productTypeID=?;''', (materialID,))
+            subreactionTypeID = cur.fetchall()[0][0]
+            cur.execute(''' SELECT materialTypeID, quantity
+                            FROM reaction_materials
+                            WHERE typeID=?;''', (subreactionTypeID,))
+            sub_materials = cur.fetchall()
+            for sub_material in sub_materials:
+                sub_materialID = sub_material[0]
+                sub_materialQuantity = sub_material[1]
+
+                cur.execute(''' SELECT MIN(COST), self_produced
+                                FROM material_cost
+                                WHERE type_id=?;''', (sub_materialID,))
+                sub_mat_cost = cur.fetchall()
+                sub_material_cost = sub_mat_cost[0][0]
+                sub_material_self_prodcued = sub_mat_cost[0][0]
+                print('    ', id_to_name(cur, sub_materialID), 'x' + str(sub_materialQuantity), sub_mat_cost)
+                if sub_materialID not in recipe:
+                    recipe[sub_materialID] = sub_materialQuantity*materialQuantity
+                else:
+                    recipe[sub_materialID] += sub_materialQuantity*materialQuantity
+        else:
+            if materialID not in recipe:
+                recipe[materialID] = materialQuantity
+            else:
+                recipe[materialID] += materialQuantity
+        print('*--------------------------------------------------*')
+    #print(recipe)
+    print('total:')
+    for item in recipe:
+        print(' ', id_to_name(cur, item), 'x' + str(recipe[item]))
+    print('')
+
+def refresh_margin_display(top_margins):
     menu_index = 0
     for response in top_margins:
         product_type_id = response[0]
@@ -344,17 +401,33 @@ def display_top_margins(cur):
         sell_price = response[3]
         print(str(menu_index+1) + ".)", "%.2f" % (margin/1000000) + 'm with', id_to_name(cur, product_type_id), "%.2f" % (sell_price/1000000) +  'm -', "%.2f"% (obtain_price/1000000) + 'm', "ROI:", "%.2f"%(sell_price/obtain_price*100) + "%")
         menu_index += 1
-    response = input('choice ("e" to exit): ')
+    return input('choice ("e" to exit): ')
+
+def display_top_margins(cur):
+    cur.execute(''' SELECT product_type_id, margin, obtain_price, sell_price
+                    FROM reaction_margins
+                    WHERE margin > 0
+                    ORDER BY margin DESC;''')
+    top_margins = cur.fetchall()
+
+    response = refresh_margin_display(top_margins)
+
     while response != 'e':
         try:
             response = int(response)
             response -= 1
             if response >= 0 and response < len(top_margins):
                 print('Retrieving recipe for', id_to_name(cur, top_margins[response][0]) + "." )
+                print('')
+                print('')
+                find_recipe(cur, top_margins[response][0])
             else:
                 print('Error: too high')
-            response = input('choice ("e" to exit: ')
+            response = input('choice ("e" to exit): ')
         except: 
+            if response == 'r':
+                response = refresh_margin_display(top_margins)
+                continue
             print('Error: value must be a number')
             response = input('choice ("e" to exit): ')
 
@@ -386,8 +459,8 @@ class API:
 
 # I want this as a global each time the program is run.        
 api = API() #if the swagger information is older than a day, it will re-request it from the server
-min_material = 10000
-min_product = 10000
+min_material = 100000
+min_product = 100000
 
 if __name__=="__main__":
     cur = initialize_database()
