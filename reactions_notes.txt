@@ -915,3 +915,57 @@ COUNT products = 57
 count BOTH = 37
 
 k yeah, my original was overly complicated
+
+Still on the question though -> where do I put the order information for products/materials that I produce myself?
+Should it be stored in a database between runs of the sql program?
+Should it just be part of a python data structure untill everything has been processed?
+	- I feel like this may be the best way to do it.
+	- Have a 'final best' in a dictionary
+How will it be stored though? 
+	-One row for each station that I get the material from?
+	-One row for each material?
+		-I don't think this would work because I want to have the location infromation easily accessible.
+
+*** I CAN ADD A COULUMN TO MARKET_INFO for best price****
+	-Add a "best price" column to market_info
+	
+CREATE TABLE material_cost (
+	type_id INTEGER,
+	cost FLOAT,
+	time INTEGER,
+	self_produced INTEGER
+	);
+	
+Having a weird issue:
+	9850|427.665430558032|0|0
+	9850||0|0
+	
+	25335|3287074.7777551|0|0
+	25335||0|0
+	
+	25341|313211.192676906|0|0
+	25341||0|0
+	
+In the instances where I'm not finding a market sell order, i'm getting duplicates in my material_cost table
+
+This was happening because the typeID I was getting was in the for-loop for the marketinfo orders. If there were no market_orders for a given item, 
+then the program kept going, but used the previous value for the typeID when updating the material_cost table.
+
+So, I've decided to add a column to market_info that indicates if a row will be purchased for the reactions
+There is also a table that holds the average price for the first $min_materials materials.
+
+Should I do some sort of work for the maximum ammount? Possibly, but I'll implement that later on.
+
+Do I want the sell-price to be similar to the function of the buy price?
+yeh, probs
+
+DROP TABLE product_cost;
+CREATE TABLE product_cost (
+        type_id INTEGER,
+        production_cost FLOAT,
+		buy_price FLOAT,
+		sell_price FLOAT
+);
+
+
+Okay, I will make a new row in

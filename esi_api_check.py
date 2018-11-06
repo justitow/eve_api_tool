@@ -23,6 +23,10 @@ dname = os.path.dirname(abspath)
 os.chdir(dname)
 ########################################################################
 
+def id_to_name(cur, id):
+    cur.execute('SELECT typeName FROM SDE.invTypes WHERE typeID=?;', (id,))
+    name = cur.fetchall()
+    return name[0][0]
 
 def generate_market_info_requests(input_list, order_string, region):
     operations = []
@@ -66,7 +70,8 @@ def fetch_market_data(cur):
     cur.execute(''' SELECT DISTINCT productTypeID 
                     FROM reaction_products 
                     WHERE productTypeID NOT IN (
-                        SELECT productTypeID FROM reaction_products
+                        SELECT materialTypeID 
+                        FROM reaction_materials
                     )''')
     products=cur.fetchall()
     cur.execute(''' SELECT DISTINCT materialTypeID 
@@ -166,30 +171,140 @@ def retrieve_partitioned_material_ids(cur, mode):
                     + sql_reaction_id_string + 
                 ''') AND materialTypeID NOT IN
                         (SELECT type_id 
-                        FROM best_price 
-                        WHERE min_price = 1);''')
+                        FROM material_cost
+                        WHERE self_produced=0);''')
     materialIDs = cur.fetchall()
 
     return reactionIDs, materialIDs
-    
+ 
+def buy_cost_evaluator(cur, type_id):
+    cur.execute('''SELECT price, volume_remain, rowid AS market_rowid
+                   FROM market_info
+                   WHERE type_id=?
+                   AND is_buy_order=0
+                   ORDER BY price ASC;''', (type_id,) )
+    market_orders = cur.fetchall()
+    total_volume = 0
+    total_cost = 0
+    selected_orders = []
+    for market_order in market_orders:
+        price = market_order[0]
+        volume_remain = market_order[1]
+        market_rowid = market_order[2]
         
+        total_volume += volume_remain
+        total_cost += volume_remain*price
+        
+        cur.execute(''' UPDATE market_info
+                        SET marked_for_buy=1
+                        WHERE rowID=?;''', (market_rowid,))
+                        
+        if total_volume >= min_material:
+            break
+    # print(id_to_name(cur, type_id))
+    if total_volume != 0:
+        table_cost = total_cost/total_volume
+    else:
+        table_cost = None
+       
+    cur.execute('INSERT INTO material_COST (type_id, cost, time, self_produced) VALUES (?, ?, ?, ?);', (type_id, table_cost, 0, 0))
+    
+def self_production_cost_evaluator(cur, reactionID): # this should be the one that checks if it is cheaper to self-produce
+    cur.execute(''' SELECT DISTINCT materialTypeID, quantity
+                    FROM reaction_materials
+                    WHERE typeID=?;''', (reactionID,))
+    materials_list = cur.fetchall()
+    cur.execute(''' SELECT DISTINCT productTypeID, quantity
+                    FROM reaction_products
+                    WHERE typeID=?;''', (reactionID,))
+    product_list = cur.fetchall()
+    product_id = product_list[0][0]
+    product_count = product_list[0][1] 
+    
+    reaction_subtotal = 0
+    for material_row in materials_list:
+        material_id = material_row[0]
+        material_count = material_row[1]
+        cur.execute(''' SELECT MIN(cost)
+                        FROM material_cost
+                        WHERE type_id=?;''', (material_id,))
+        price = cur.fetchall()
+        price = price[0][0]
+        if price is not None:
+            reaction_subtotal += price*material_count
+        else:
+            print('When evaluating production costs, no orders found for: ', id_to_name(cur, material_id))
+        
+    reaction_total = reaction_subtotal/product_count
+    
+    cur.execute('SELECT time FROM industryActivity WHERE typeID=?;', (reactionID,))
+    time = cur.fetchall()
+    time = time[0][0]
+ 
+    cur.execute('INSERT INTO material_cost (type_id, cost, time, self_produced) VALUES (?,?,?,?);', (product_id, reaction_total, time, 1))
+    cur.execute('INSERT INTO product_cost (type_id, production_cost) VALUES (?,?);', (product_id, reaction_total))
+    
 def partition_and_evaluate_reaction_costs(cur):
     modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',))
+    best_price = {}
+    cur.execute('DELETE FROM material_cost;')
+    cur.execute('DELETE FROM product_cost;')
+    cur.execute('UPDATE market_info SET marked_for_buy=0;')
+    cur.execute(''' SELECT DISTINCT materialTypeID
+                    FROM reaction_materials
+                    WHERE materialTypeID IN(
+                        SELECT productTypeID
+                        FROM reaction_products
+                    );''')
+    shared_materials = cur.fetchall() # this can be used to check if a material is used as a product
     for mode in modes:
         reactionIDs, materialIDs = retrieve_partitioned_material_ids(cur, mode)
+        cur.execute('BEGIN TRANSACTION;')
         for materialID in materialIDs:
-            cur.execute('''SELECT type_id, system_id, price, volume_remain
-                           FROM market_info
-                           WHERE type_id=?
-                           AND is_buy_order=0
-                           ORDER BY price ASC''', (materialID[0],) )
-            market_orders = cur.fetchall()
+            buy_cost_evaluator(cur, materialID[0])
+        cur.execute('END TRANSACTION;')
+        cur.execute('BEGIN TRANSACTION;')
+        for reactionID in reactionIDs:
+            self_production_cost_evaluator(cur, reactionID[0])
+        cur.execute('END TRANSACTION;')
+        print(len(reactionIDs))
+                
+def evaluate_reaction_profits(cur):
 
-            total_volume = 0
-
-            for market_order in market_orders:
-                print(market_order)
-
+    cur.execute('SELECT productTypeID FROM reaction_products;')
+    products_query = cur.fetchall()
+    
+    cur.execute('BEGIN TRANSACTION;')
+    for query in products_query:
+        productID = query[0]
+        cur.execute(''' SELECT price, volume_remain, rowid
+                        FROM market_info
+                        WHERE is_buy_order=1
+                        AND type_id=?
+                        ORDER BY price DESC;''', (productID,))
+        market_orders = cur.fetchall()
+        
+        total_volume = 0
+        subtotal_price = 0
+        
+        for order in market_orders:
+            price = order[0]
+            volume = order[1]
+            order_rowid = order[2]
+            
+            total_volume += volume
+            subtotal_price += volume*price
+            
+            cur.execute(''' UPDATE market_info
+                            SET marked_for_buy=1
+                            WHERE rowid=?''', (order_rowid,))
+            
+            if total_volume >= min_product:
+                break
+        total_price = subtotal_price/total_volume
+        cur.execute('UPDATE product_cost SET sell_price=? WHERE type_id=?', (total_price, productID))
+    cur.execute('END TRANSACTION;')
+        
 class API:
     def __init__(self):
         self.esi_app = EsiApp()
@@ -217,12 +332,14 @@ class API:
 
 # I want this as a global each time the program is run.        
 api = API() #if the swagger information is older than a day, it will re-request it from the server
-min_material = 100000
+min_material = 10000
+min_product = 10000
 
 if __name__=="__main__":
     cur = initialize_database()
     
     # fetch_market_data(cur)
     partition_and_evaluate_reaction_costs(cur)
+    evaluate_reaction_profits(cur)
     print('working')
     #print(results)
