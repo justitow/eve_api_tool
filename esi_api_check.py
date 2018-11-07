@@ -25,10 +25,49 @@ dname = os.path.dirname(abspath)
 os.chdir(dname)
 ########################################################################
 
+def display_num(number):
+    if number >= 1000 and number < 1000000:
+        return ("%.2f" % (number/1000)) + ' thousand'
+    if number >= 1000000 and number < 1000000000:
+        return ("%.2f" % (number/1000000)) + ' mil'
+    if number >= 1000000000:
+        return ("%.2f" % (number/1000000000)) + ' bil'
 def id_to_name(cur, id):
     cur.execute('SELECT typeName FROM SDE.invTypes WHERE typeID=?;', (id,))
     name = cur.fetchall()
     return name[0][0]
+    
+def prepare_component_db(cur):
+    cur.execute(''' SELECT DISTINCT materialTypeID
+                    FROM reaction_materials
+                    WHERE materialTypeID NOT IN (
+                        SELECT productTypeID
+                        FROM reaction_products
+                    );''')
+    materials = cur.fetchall()
+    cur.execute(''' SELECT DISTINCT productTypeID
+                    FROM reaction_products
+                    WHERE productTypeID NOT IN (
+                        SELECT materialTypeID
+                        FROM reaction_materials
+                    );''')
+    products = cur.fetchall()
+    cur.execute(''' SELECT DISTINCT productTypeID
+                    FROM reaction_products
+                    WHERE productTypeID IN (
+                        SELECT materialTypeID
+                        FROM reaction_materials
+                    );''')
+    both = cur.fetchall()
+    cur.execute('DELETE FROM reaction_items;')
+    cur.execute('BEGIN TRANSACTION;')
+    for mat in materials:
+        cur.execute('INSERT INTO reaction_items (type_id) VALUES (?)', (mat[0],))
+    for prod in products:
+        cur.execute('INSERT INTO reaction_items (type_id) VALUES (?)', (prod[0],))
+    for prod_mat in both:
+        cur.execute('INSERT INTO reaction_items (type_id) VALUES (?)', (prod_mat[0],))
+    cur.execute('END TRANSACTION;')
 
 def generate_market_info_requests(input_list, order_string, region):
     operations = []
@@ -58,10 +97,16 @@ def generate_market_info_requests(input_list, order_string, region):
                 )
         '''
     return operations
-def to_sql_datetime(in_date):
-    outstring = str(in_date.year)+'-'+str(in_date.month)+'-'+str(in_date.day)+' '+str(in_date.hour)+':'+str(in_date.minute) + ':' + str(in_date.second) 
-    return outstring
+
 def fetch_market_data(cur):
+    cur.execute('SELECT date_pulled FROM market_info LIMIT 1;')
+    last_polled = datetime.strptime(cur.fetchall()[0][0], '%Y-%m-%d %H:%M:%S')
+    difference = datetime.today() - last_polled
+    if difference.seconds//60 < 15:
+        print('Market data is ' + str(difference.seconds//60) + ' minutes old')
+        return
+    
+    print('Stale market data, requesting from the API')
     cur.execute(''' SELECT DISTINCT materialTypeID 
                     FROM reaction_materials 
                     WHERE materialTypeID NOT IN (
@@ -100,7 +145,6 @@ def fetch_market_data(cur):
         results = api.client.request(operations[0])
     #print(results)
     insert_market_info(results, cur)    
-#def fetch_market_history(
     
 def initialize_database():
     con = sqlite3.connect('./program.sqlite')
@@ -115,7 +159,7 @@ def insert_market_info(results, cur):
     cur.execute('BEGIN TRANSACTION;')
     for swagger_object in results:
         for order in swagger_object[1].data:
-            cur.execute('INSERT OR IGNORE INTO market_info (duration, issued, is_buy_order, location_id, min_volume, order_id, price, range, system_id, type_id, volume_remain, volume_total) VALUES (?,datetime(?),?,?,?,?,?,?,?,?,?,?);', 
+            cur.execute("INSERT OR IGNORE INTO market_info (duration, issued, is_buy_order, location_id, min_volume, order_id, price, range, system_id, type_id, volume_remain, volume_total, date_pulled) VALUES (?,datetime(?),?,?,?,?,?,?,?,?,?,?,DATETIME('now', 'localtime'));", 
             (order['duration'],
              str(order['issued']),
              order['is_buy_order'],
@@ -129,12 +173,14 @@ def insert_market_info(results, cur):
              order['volume_remain'],
              order['volume_total']))
     cur.execute('END TRANSACTION;')
-             
- 
-def chunks(data, rows=10000):
-    for i in range(0, len(data), rows):
-        yield data[i:i+rows]
-        
+    cur.execute(''' DELETE FROM market_info
+                    WHERE system_id IN (
+                        SELECT DISTINCT system_id
+                        FROM market_info
+                        JOIN SDE.mapSolarSystems ON solarSystemID=system_id
+                        WHERE security<.5
+                    );''')
+    
 def retrieve_partitioned_material_ids(cur, mode):
     sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
                                 FROM SDE.industryActivity actv
@@ -173,8 +219,8 @@ def retrieve_partitioned_material_ids(cur, mode):
                     + sql_reaction_id_string + 
                 ''') AND materialTypeID NOT IN
                         (SELECT type_id 
-                        FROM material_cost
-                        WHERE self_produced=0);''')
+                        FROM reaction_items
+                        WHERE buy_cost IS NOT NULL);''')
     materialIDs = cur.fetchall()
 
     return reactionIDs, materialIDs
@@ -210,7 +256,7 @@ def buy_cost_evaluator(cur, type_id):
         table_cost = None
 
        
-    cur.execute('INSERT INTO material_COST (type_id, cost, time, self_produced) VALUES (?, ?, ?, ?);', (type_id, table_cost, 0, 0))
+    cur.execute('UPDATE reaction_items SET buy_cost=? WHERE type_id=?', (table_cost, type_id))
     
 def self_production_cost_evaluator(cur, reactionID): # this should be the one that checks if it is cheaper to self-produce
     cur.execute(''' SELECT DISTINCT materialTypeID, quantity
@@ -228,29 +274,37 @@ def self_production_cost_evaluator(cur, reactionID): # this should be the one th
     for material_row in materials_list:
         material_id = material_row[0]
         material_count = material_row[1]
-        cur.execute(''' SELECT MIN(cost)
-                        FROM material_cost
+        cur.execute(''' SELECT buy_cost, production_cost
+                        FROM reaction_items
                         WHERE type_id=?;''', (material_id,))
         price = cur.fetchall()
-        price = price[0][0]
-        if price is not None:
-            reaction_subtotal += price*material_count
+        buy_cost = price[0][0]
+        production_cost = price[0][1]
+        if buy_cost is None:
+            #print('When evaluating production costs, no orders found for: ', id_to_name(cur, material_id))
+            continue
+        if production_cost is not None and not always_buy:
+            cost = min(buy_cost, production_cost)
+            reaction_subtotal += cost*material_count
         else:
-            print('When evaluating production costs, no orders found for: ', id_to_name(cur, material_id))
-        
+            reaction_subtotal += buy_cost*material_count
+            
     reaction_total = reaction_subtotal/product_count
-    
-    cur.execute('SELECT time FROM industryActivity WHERE typeID=?;', (reactionID,))
-    time = cur.fetchall()
-    time = time[0][0]
  
-    cur.execute('INSERT INTO material_cost (type_id, cost, time, self_produced) VALUES (?,?,?,?);', (product_id, reaction_total, time, 1))
-    
+    cur.execute('UPDATE reaction_items SET production_cost=? WHERE type_id=?;', (reaction_total, product_id))
+
+def find_material_buy_prices(cur):
+    cur.execute('UPDATE market_info SET marked_for_buy=0;')
+    cur.execute('SELECT materialTypeID from reaction_materials;')
+    materialIDs = cur.fetchall()
+    cur.execute('BEGIN TRANSACTION;')
+    for materialID in materialIDs:
+        buy_cost_evaluator(cur, materialID[0])
+    cur.execute('END TRANSACTION;')
+        
 def partition_and_evaluate_reaction_costs(cur):
     modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',))
     best_price = {}
-    cur.execute('DELETE FROM material_cost;')
-    cur.execute('UPDATE market_info SET marked_for_buy=0;')
     cur.execute(''' SELECT DISTINCT materialTypeID
                     FROM reaction_materials
                     WHERE materialTypeID IN(
@@ -261,16 +315,11 @@ def partition_and_evaluate_reaction_costs(cur):
     for mode in modes:
         reactionIDs, materialIDs = retrieve_partitioned_material_ids(cur, mode)
         cur.execute('BEGIN TRANSACTION;')
-        for materialID in materialIDs:
-            buy_cost_evaluator(cur, materialID[0])
-        cur.execute('END TRANSACTION;')
-        cur.execute('BEGIN TRANSACTION;')
         for reactionID in reactionIDs:
             self_production_cost_evaluator(cur, reactionID[0])
         cur.execute('END TRANSACTION;')
                 
-def evaluate_reaction_profits(cur):
-    cur.execute('DELETE FROM product_gross;')
+def find_product_sell_prices(cur):
     cur.execute('SELECT productTypeID FROM reaction_products;')
     products_query = cur.fetchall()
     
@@ -302,7 +351,7 @@ def evaluate_reaction_profits(cur):
             if total_volume >= min_product:
                 break
         total_price = subtotal_price/total_volume
-        cur.execute('INSERT INTO product_gross (sell_price, type_id) VALUES (?,?);', (total_price, productID))
+        cur.execute('UPDATE reaction_items SET sell_cost=? WHERE type_id=?', (total_price, productID))
     cur.execute('END TRANSACTION;')
 
 def evaluate_reaction_margins(cur):
@@ -314,21 +363,20 @@ def evaluate_reaction_margins(cur):
     for query in products_query:
         productID = query[0]
         product_count = query[1]
-        cur.execute(''' SELECT MIN(cost)
-                        FROM material_cost
+        cur.execute(''' SELECT production_cost, sell_cost
+                        FROM reaction_items
                         WHERE type_id = ?;''', (productID,))
         cost_query = cur.fetchall()
-        product_investment = cost_query[0][0]
-        cur.execute(''' SELECT sell_price
-                        FROM product_gross
-                        WHERE type_id = ?;''', (productID,))
-        gross_query = cur.fetchall()
-        product_gross = gross_query[0][0]
-        margin = product_gross - product_investment
+        production_cost = cost_query[0][0]
+        sell_cost = cost_query[0][1]
+        margin = 0
+        
+        margin = sell_cost - production_cost
+        
         cur.execute(''' INSERT INTO reaction_margins 
                         (product_type_id, obtain_price, sell_price, margin)
                         VALUES (?,?,?,?);''',
-                        (productID, product_investment*product_count, product_gross*product_count, margin*product_count))
+                        (productID, production_cost*product_count, sell_cost*product_count, margin*product_count))
     cur.execute('END TRANSACTION;')
 
 def find_recipe(cur, product_id):
@@ -349,14 +397,15 @@ def find_recipe(cur, product_id):
         materialID = material[0]
         materialQuantity = material[1]
 
-        cur.execute(''' SELECT MIN(COST), self_produced
-                        FROM material_cost
+        cur.execute(''' SELECT production_cost, buy_cost
+                        FROM reaction_items
                         WHERE type_id=?;''', (materialID,))
         mat_cost = cur.fetchall()
-        material_cost = mat_cost[0][0]
-        material_self_produced = mat_cost[0][1]
+        material_production_cost = mat_cost[0][0]
+        material_buy_cost = mat_cost[0][1]
+        
         print(id_to_name(cur,materialID), 'x' + str(materialQuantity), mat_cost)
-        if material_self_produced:
+        if (not always_buy) and (material_buy_cost is not None) and (material_production_cost is not None) and (material_production_cost < material_buy_cost):
             cur.execute(''' SELECT typeID
                             FROM reaction_products
                             WHERE productTypeID=?;''', (materialID,))
@@ -369,12 +418,11 @@ def find_recipe(cur, product_id):
                 sub_materialID = sub_material[0]
                 sub_materialQuantity = sub_material[1]
 
-                cur.execute(''' SELECT MIN(COST), self_produced
-                                FROM material_cost
+                cur.execute(''' SELECT buy_cost
+                                FROM reaction_items
                                 WHERE type_id=?;''', (sub_materialID,))
                 sub_mat_cost = cur.fetchall()
                 sub_material_cost = sub_mat_cost[0][0]
-                sub_material_self_prodcued = sub_mat_cost[0][0]
                 print('    ', id_to_name(cur, sub_materialID), 'x' + str(sub_materialQuantity), sub_mat_cost)
                 if sub_materialID not in recipe:
                     recipe[sub_materialID] = sub_materialQuantity*materialQuantity
@@ -391,6 +439,7 @@ def find_recipe(cur, product_id):
     for item in recipe:
         print(' ', id_to_name(cur, item), 'x' + str(recipe[item]))
     print('')
+    return recipe
 
 def refresh_margin_display(top_margins):
     menu_index = 0
@@ -399,10 +448,53 @@ def refresh_margin_display(top_margins):
         margin = response[1]
         obtain_price = response[2]
         sell_price = response[3]
-        print(str(menu_index+1) + ".)", "%.2f" % (margin/1000000) + 'm with', id_to_name(cur, product_type_id), "%.2f" % (sell_price/1000000) +  'm -', "%.2f"% (obtain_price/1000000) + 'm', "ROI:", "%.2f"%(sell_price/obtain_price*100) + "%")
+        print(str(menu_index+1) + ".)", display_num(margin) ,'with', id_to_name(cur, product_type_id), display_num(sell_price) , '-', display_num(obtain_price), "ROI:", "%.2f"%((sell_price-obtain_price)/obtain_price*100) + "%")
         menu_index += 1
     return input('choice ("e" to exit): ')
+    
+def find_purchase_details(cur, recipe, current_type_id):
+    total_count = int(input('How many reactions will be taking place? '))
+    print(recipe)
+    volumes = {}
+    volume_by_market = {}
+    for material in recipe:
+        print(' ', id_to_name(cur, material), 'x', recipe[material]*total_count)
+        cur.execute(''' SELECT volume
+                        FROM SDE.invTypes
+                        WHERE typeID=?''', (material,))
+        volume = cur.fetchall()[0][0]
+        print('   ', 'Volume:', volume)
+        print('   ', 'Total Volume:', volume*recipe[material]*total_count)
+        cur.execute(''' SELECT solarSystemName, SUM(price*volume_remain)/SUM(volume_remain), SUM(volume_remain), security
+                        FROM market_info
+                        JOIN SDE.mapSolarSystems ON system_id=solarSystemID
+                        WHERE marked_for_buy=1
+                        AND type_id=?
+                        GROUP by system_id
+                        ORDER BY SUM(price*volume_remain)/SUM(volume_remain) ASC''', (material,))
+        markets = cur.fetchall()
+        for market in markets:
+            print('   ', market[0], market[1], 'isk', 'total available:', market[2])
+            
+        
+            
+    cur.execute(''' SELECT obtain_price, margin
+                    FROM reaction_margins
+                    WHERE product_type_id=?;''', (current_type_id,))
+    query = cur.fetchall()
+    input_isk = query[0][0]
+    margin = query[0][1]
+    
+    total_input = input_isk*total_count
+    total_net_profit = margin*total_count
+    
+    print('invested isk:', display_num(total_input))
+    print('total profits:', display_num(total_net_profit))
+    print('')
+    return total_count
 
+    
+    
 def display_top_margins(cur):
     cur.execute(''' SELECT product_type_id, margin, obtain_price, sell_price
                     FROM reaction_margins
@@ -413,21 +505,27 @@ def display_top_margins(cur):
     response = refresh_margin_display(top_margins)
 
     while response != 'e':
-        try:
+        #try:
             response = int(response)
             response -= 1
             if response >= 0 and response < len(top_margins):
                 print('Retrieving recipe for', id_to_name(cur, top_margins[response][0]) + "." )
                 print('')
                 print('')
-                find_recipe(cur, top_margins[response][0])
+                recipe = find_recipe(cur, top_margins[response][0])
+                current_type_id = top_margins[response][0]
             else:
                 print('Error: too high')
             response = input('choice ("e" to exit): ')
-        except: 
+            if response == 'b':
+                find_purchase_details(cur, recipe, current_type_id)
+                response = input('choice: ')
+                continue
+        #except: 
             if response == 'r':
                 response = refresh_margin_display(top_margins)
                 continue
+            
             print('Error: value must be a number')
             response = input('choice ("e" to exit): ')
 
@@ -461,15 +559,18 @@ class API:
 api = API() #if the swagger information is older than a day, it will re-request it from the server
 min_material = 100000
 min_product = 100000
+always_buy = 0
 
 if __name__=="__main__":
+    print('welcome to zombocom')
     cur = initialize_database()
     
-    # fetch_market_data(cur)
+    fetch_market_data(cur)
+    prepare_component_db(cur)
+    find_material_buy_prices(cur)
     partition_and_evaluate_reaction_costs(cur)
-    evaluate_reaction_profits(cur)
+    find_product_sell_prices(cur)
     evaluate_reaction_margins(cur)
-
     display_top_margins(cur)
 
     #print(results)

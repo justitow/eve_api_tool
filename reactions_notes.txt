@@ -999,3 +999,52 @@ sqlite>
 THis is happening, because the table is not always recieving a count (when its cheaper to buy than to self-product)
 
 Do I want to do a recursion for the sub-reactions?
+
+I think I want to combine the product_gross, material_cost tables into one table
+	-material_cost
+	-product_gross
+
+DROP TABLE reaction_items;	
+CREATE TABLE reaction_items(
+	type_id,
+	production_cost,
+	buy_cost,
+	sell_cost
+);
+
+Okay, now I want to be able to go from system_id to system name
+hmmmmmmmmmm
+
+SELECT solarSystemName
+from SDE.mapSolarSystems
+WHERE solarSystemID=?
+
+I need to get it to ignore the systems that are lowsec
+
+DELETE FROM market_info
+WHERE system_id IN (
+	SELECT DISTINCT system_id
+	FROM market_info
+	JOIN SDE.mapSolarSystems ON solarSystemID=system_id
+	WHERE security<.5
+);
+
+DROP TABLE market_info;
+CREATE TABLE market_info(
+duration INTEGER,
+is_buy_order INTEGER,
+issued DATETIME,
+location_id INTEGER,
+min_volume INTEGER,
+order_id INTEGER,
+price FLOAT,
+range TEXT,
+system_id INTEGER,
+volume_remain INTEGER,
+volume_total INTEGER,
+region_id INTEGER, 
+type_id INTEGER, 
+marked_for_buy INTEGER,
+date_pulled DATETIME);
+
+I sorta want to change the "current recipe" value to actually be something with the database?
