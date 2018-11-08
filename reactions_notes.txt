@@ -1048,3 +1048,13 @@ marked_for_buy INTEGER,
 date_pulled DATETIME);
 
 I sorta want to change the "current recipe" value to actually be something with the database?
+
+Current goals:
+	-implement market history fetch
+	-implement the current recipe into a database entry and a function that displays the entry
+		-make sure to currectly label subcomponent values (make a column "product_type_id"?)
+	-implement the shopping list feature
+		-Tells me how much of what materials to get from which markets
+		-Calculates based on the number of reactions specified
+		-Calculatues total volume at each market
+	-Create a usable and non-broken GUI

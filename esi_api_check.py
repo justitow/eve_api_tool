@@ -27,7 +27,7 @@ os.chdir(dname)
 
 def display_num(number):
     if number >= 1000 and number < 1000000:
-        return ("%.2f" % (number/1000)) + ' thousand'
+        return ("%.2f" % (number/1000)) + ' k'
     if number >= 1000000 and number < 1000000000:
         return ("%.2f" % (number/1000000)) + ' mil'
     if number >= 1000000000:
@@ -102,7 +102,7 @@ def fetch_market_data(cur):
     cur.execute('SELECT date_pulled FROM market_info LIMIT 1;')
     last_polled = datetime.strptime(cur.fetchall()[0][0], '%Y-%m-%d %H:%M:%S')
     difference = datetime.today() - last_polled
-    if difference.seconds//60 < 15:
+    if difference.seconds//60 < 60:
         print('Market data is ' + str(difference.seconds//60) + ' minutes old')
         return
     
@@ -318,7 +318,28 @@ def partition_and_evaluate_reaction_costs(cur):
         for reactionID in reactionIDs:
             self_production_cost_evaluator(cur, reactionID[0])
         cur.execute('END TRANSACTION;')
-                
+
+def fetch_market_history(cur):
+    cur.execute(''' SELECT materialTypeID
+                    FROM reaction_materials
+                    UNION
+                    SELECT productTypeID
+                    FROM reaction_products;''')
+    reaction_types = cur.fetchall()
+    
+    operations = []
+    regions = [10000002, 10000042, 10000043, 10000032]
+    for region in regions:
+        for input_id in reaction_types:
+            operations.append(
+                api.app.op['get_markets_region_id_history'](
+                    region_id=region,
+                    page=1,
+                    order_type=order_string,
+                    type_id=input_id[0],
+                ) 
+            )
+        
 def find_product_sell_prices(cur):
     cur.execute('SELECT productTypeID FROM reaction_products;')
     products_query = cur.fetchall()
@@ -492,8 +513,6 @@ def find_purchase_details(cur, recipe, current_type_id):
     print('total profits:', display_num(total_net_profit))
     print('')
     return total_count
-
-    
     
 def display_top_margins(cur):
     cur.execute(''' SELECT product_type_id, margin, obtain_price, sell_price
@@ -566,6 +585,7 @@ if __name__=="__main__":
     cur = initialize_database()
     
     fetch_market_data(cur)
+    # fetch_market_history(cur)
     prepare_component_db(cur)
     find_material_buy_prices(cur)
     partition_and_evaluate_reaction_costs(cur)
