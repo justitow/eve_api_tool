@@ -102,7 +102,7 @@ def fetch_market_data(cur):
     cur.execute('SELECT date_pulled FROM market_info LIMIT 1;')
     last_polled = datetime.strptime(cur.fetchall()[0][0], '%Y-%m-%d %H:%M:%S')
     difference = datetime.today() - last_polled
-    if difference.seconds//60 < 60:
+    if difference.total_seconds()//60 < 60:
         print('Market data is ' + str(difference.seconds//60) + ' minutes old')
         return
     
@@ -326,53 +326,64 @@ def fetch_market_history(cur):
                     SELECT productTypeID
                     FROM reaction_products;''')
     reaction_types = cur.fetchall()
-    
+    print('fetching market history')
     operations = []
-    regions = [10000002, 10000042, 10000043, 10000032]
-    for region in regions:
-        for input_id in reaction_types:
-            operations.append(
-                api.app.op['get_markets_region_id_history'](
-                    region_id=region,
-                    page=1,
-                    order_type=order_string,
-                    type_id=input_id[0],
-                ) 
-            )
+    #regions = [10000002, 10000042, 10000043, 10000032]
+    #for region in regions:
+    for input_id in reaction_types:
+        operations.append(
+            api.app.op['get_markets_region_id_history'](
+                region_id=10000002,
+                type_id=input_id[0],
+            ) 
+        )
         
+    results = api.client.multi_request(operations)
+    cur.execute('DELETE FROM market_history;')
+    cur.execute('BEGIN TRANSACTION;')
+    for operation in operations:
+        for response in operation[1].data:
+            print(operation[0].query[0])
+          
+            
+    cure.execute('END TRANSACTION;')
+
+    
+def evaluate_sell_price(cur, product_id):
+    cur.execute(''' SELECT price, volume_remain, rowid
+                    FROM market_info
+                    WHERE is_buy_order=1
+                    AND type_id=?
+                    ORDER BY price DESC;''', (product_id,))
+    market_orders = cur.fetchall()
+    
+    total_volume = 0
+    subtotal_price = 0
+    
+    for order in market_orders:
+        price = order[0]
+        volume = order[1]
+        order_rowid = order[2]
+        
+        total_volume += volume
+        subtotal_price += volume*price
+        
+        cur.execute(''' UPDATE market_info
+                        SET marked_for_buy=1
+                        WHERE rowid=?;''', (order_rowid,))
+        
+        if total_volume >= min_product:
+            break
+    total_price = subtotal_price/total_volume
+    cur.execute('UPDATE reaction_items SET sell_cost=? WHERE type_id=?', (total_price, product_id))
+   
 def find_product_sell_prices(cur):
     cur.execute('SELECT productTypeID FROM reaction_products;')
     products_query = cur.fetchall()
     
     cur.execute('BEGIN TRANSACTION;')
     for query in products_query:
-        productID = query[0]
-        cur.execute(''' SELECT price, volume_remain, rowid
-                        FROM market_info
-                        WHERE is_buy_order=1
-                        AND type_id=?
-                        ORDER BY price DESC;''', (productID,))
-        market_orders = cur.fetchall()
-        
-        total_volume = 0
-        subtotal_price = 0
-        
-        for order in market_orders:
-            price = order[0]
-            volume = order[1]
-            order_rowid = order[2]
-            
-            total_volume += volume
-            subtotal_price += volume*price
-            
-            cur.execute(''' UPDATE market_info
-                            SET marked_for_buy=1
-                            WHERE rowid=?;''', (order_rowid,))
-            
-            if total_volume >= min_product:
-                break
-        total_price = subtotal_price/total_volume
-        cur.execute('UPDATE reaction_items SET sell_cost=? WHERE type_id=?', (total_price, productID))
+        evaluate_sell_price(cur, query[0])
     cur.execute('END TRANSACTION;')
 
 def evaluate_reaction_margins(cur):
@@ -585,7 +596,7 @@ if __name__=="__main__":
     cur = initialize_database()
     
     fetch_market_data(cur)
-    # fetch_market_history(cur)
+    fetch_market_history(cur)
     prepare_component_db(cur)
     find_material_buy_prices(cur)
     partition_and_evaluate_reaction_costs(cur)

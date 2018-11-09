@@ -1051,10 +1051,30 @@ I sorta want to change the "current recipe" value to actually be something with 
 
 Current goals:
 	-implement market history fetch
+		-the requests should come out in the same order that the market orders are put in. So what I can do is:
+			-get list of productTypeID
+			-create list of requests
+			-keep list of productTypeID's
+			-make requests
+			-iterate through responses
+			-access productTypeID by using the index from the iterator (enum)
+			
+			I have a bit of a quandry? So like, I can access the region_id from the original request tuple....but....I have to access a _p variable. Which means its not supposed to be 
+			front facing? I'm going to research into that (market_order_operation[0]._p['path']['region_id'])
+op				market_order_operation[0].path[9:17]
+			
+			
 	-implement the current recipe into a database entry and a function that displays the entry
 		-make sure to currectly label subcomponent values (make a column "product_type_id"?)
 	-implement the shopping list feature
 		-Tells me how much of what materials to get from which markets
 		-Calculates based on the number of reactions specified
 		-Calculatues total volume at each market
-	-Create a usable and non-broken GUI
+	-Create a usable and non-broken interface
+	-Adam wants a thing that will produce maximum ammount of profit possible
+		-I should be able to set the value, and recalc the cost for each?
+		-can I do this without disrupting the saved values?
+			-I think I can, by saving the original value, and then incrementing,
+			and running self_production_cost_evaluator(cur, reactionID),
+			buy_cost_evaluator(cur, type_id), sell_cost_evaluator
+			
