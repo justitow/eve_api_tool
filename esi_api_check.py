@@ -242,7 +242,7 @@ Stage is broken into non-involved, first step, middle step, and final step
 
 :param cur: cursor for the sqlite database
 :param mode: Tuple for deciding which stage we are looking at. Tuple values can be "==" or "!="
-:returns: Returns a list of the reactionID's for the mode, as well as the materials used in the reactions
+:returns: Returns a list of the reactionID's for the mode
 """
 def retrieve_partitioned_material_ids(cur, mode):
     sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
@@ -273,27 +273,27 @@ def retrieve_partitioned_material_ids(cur, mode):
                                         )
                                     )
                                 );'''
-    cur.execute(sql_reaction_id_string )
+    cur.execute(sql_reaction_id_string)
     reactionIDs =  cur.fetchall()
 
-    cur.execute(''' SELECT DISTINCT materialTypeID
-                    FROM reaction_materials
-                    WHERE typeID IN ( ''' 
-                    + sql_reaction_id_string + # looks at the 
-                ''') AND materialTypeID NOT IN
-                        (SELECT type_id 
-                        FROM reaction_items
-                        WHERE buy_cost IS NOT NULL);''')
-    materialIDs = cur.fetchall()
+    
+    return reactionIDs
+'''
+buy_cost_evaluator
 
-    return reactionIDs, materialIDs
- 
+Finds the average buy price for the first $min_material orders
+This value is stored in the reaction_items table in the buy_cost column
+
+:param cur: cursor for the sqlite database
+:param type_id: type_id for the material being evaluated
+
+'''
 def buy_cost_evaluator(cur, type_id):
     cur.execute('''SELECT price, volume_remain, rowid AS market_rowid
                    FROM market_info
                    WHERE type_id=?
                    AND is_buy_order=0
-                   ORDER BY price ASC;''', (type_id,) )
+                   ORDER BY price ASC;''', (type_id,) ) #gathers orders, sorted by cheapness
     market_orders = cur.fetchall()
     total_volume = 0
     total_cost = 0
@@ -310,17 +310,26 @@ def buy_cost_evaluator(cur, type_id):
                         SET marked_for_buy=1
                         WHERE rowID=?;''', (market_rowid,))
                         
-        if total_volume >= min_material:
+        if total_volume >= min_material: # when the min_material is reached, stops polling through the orders
             break
-    # print(id_to_name(cur, type_id))
-    if total_volume != 0:
+    if total_volume != 0: # it can be zero when there aren't any orders found for the object
         table_cost = total_cost/total_volume
     else:
-        table_cost = None
-
-       
+        table_cost = None # makes it be NULL, wonder if this has any effect later on in the program?
     cur.execute('UPDATE reaction_items SET buy_cost=? WHERE type_id=?', (table_cost, type_id))
     
+
+"""
+self_production_cost_evaluator
+
+Evaluates the how much it would be to produce one unit of product. This information gets stored in reaction_items
+This checks for the cost of buying the material vs producing the material yourself.
+The values for these checked are each columns in reaction_items. 
+This function is called for each of the "modes" calculated for all of the reactions.
+
+:param cur: cursor for sqlite database
+:param reactionID: single typeID for evaluation
+"""
 def self_production_cost_evaluator(cur, reactionID): # this should be the one that checks if it is cheaper to self-produce
     cur.execute(''' SELECT DISTINCT materialTypeID, quantity
                     FROM reaction_materials
@@ -343,19 +352,26 @@ def self_production_cost_evaluator(cur, reactionID): # this should be the one th
         price = cur.fetchall()
         buy_cost = price[0][0]
         production_cost = price[0][1]
-        if buy_cost is None:
+        if buy_cost is None: # this means no buy orders were found for a material. Common for drugs
             #print('When evaluating production costs, no orders found for: ', id_to_name(cur, material_id))
             continue
-        if production_cost is not None and not always_buy:
+        if production_cost is not None and not always_buy: # the always_buy is a parameter for if we are evaluating subcomponents
             cost = min(buy_cost, production_cost)
             reaction_subtotal += cost*material_count
-        else:
+        else: #this means that there is no production_cost for the material (hydrogen blocks and stuff)
             reaction_subtotal += buy_cost*material_count
             
-    reaction_total = reaction_subtotal/product_count
+    reaction_total = reaction_subtotal/product_count #get the price per material 
  
     cur.execute('UPDATE reaction_items SET production_cost=? WHERE type_id=?;', (reaction_total, product_id))
 
+"""
+find_material_buy_prices
+
+Finds all of the material_id's and sends them to the buy_cost_evaluator function
+
+:param cur: cursor for the sqlite database
+"""    
 def find_material_buy_prices(cur):
     cur.execute('UPDATE market_info SET marked_for_buy=0;')
     cur.execute('SELECT materialTypeID from reaction_materials;')
@@ -364,24 +380,37 @@ def find_material_buy_prices(cur):
     for materialID in materialIDs:
         buy_cost_evaluator(cur, materialID[0])
     cur.execute('END TRANSACTION;')
-        
+
+
+"""
+partition_and_evaluate_reaction_costs
+
+Seperates the reactions into the modes based on if they have materials that are also products. 
+Gets the reaction_id's and then sends the type_id's to the self_production_cost_evaluator one at
+a time to calculate the values.
+
+:param cur: cursor for the sqlite database
+
+"""    
 def partition_and_evaluate_reaction_costs(cur):
-    modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',))
+    modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',)) 
     best_price = {}
-    cur.execute(''' SELECT DISTINCT materialTypeID
-                    FROM reaction_materials
-                    WHERE materialTypeID IN(
-                        SELECT productTypeID
-                        FROM reaction_products
-                    );''')
-    shared_materials = cur.fetchall() # this can be used to check if a material is used as a product
+    
     for mode in modes:
-        reactionIDs, materialIDs = retrieve_partitioned_material_ids(cur, mode)
+        reactionIDs = retrieve_partitioned_material_ids(cur, mode)
         cur.execute('BEGIN TRANSACTION;')
         for reactionID in reactionIDs:
             self_production_cost_evaluator(cur, reactionID[0])
         cur.execute('END TRANSACTION;')
 
+"""
+fetch_market_history
+
+Queries the market_history infomation from the API. Stores it in the market_history table.
+Only active for The Forge
+
+:param cur: cursor for the sqlite database
+"""
 def fetch_market_history(cur):
     cur.execute(''' SELECT materialTypeID
                     FROM reaction_materials
@@ -430,7 +459,10 @@ def fetch_market_history(cur):
             
     cur.execute('END TRANSACTION;')
 
-    
+
+"""
+evaluate_sell_price
+"""
 def evaluate_sell_price(cur, product_id):
     cur.execute(''' SELECT price, volume_remain, rowid
                     FROM market_info
@@ -678,7 +710,7 @@ if __name__=="__main__":
     cur = initialize_database()
     
     fetch_market_data(cur)
-    fetch_market_history(cur)
+    # fetch_market_history(cur)
     prepare_component_db(cur)
     find_material_buy_prices(cur)
     partition_and_evaluate_reaction_costs(cur)

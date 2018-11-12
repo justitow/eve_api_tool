@@ -1081,3 +1081,5 @@ op				market_order_operation[0].path[9:17]
 		-instead of recreating the table, just insert the values, colated at once?
 		-or at least, only update once instead of twice
 		-I might be able to combine the inserts of the table from the self_production and buy_price_evaluator
+	-In buy_cost_evaluator
+		-work out a check for when there are insufficient orders on the market to support the number of materials requested.
