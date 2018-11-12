@@ -1077,4 +1077,7 @@ op				market_order_operation[0].path[9:17]
 			-I think I can, by saving the original value, and then incrementing,
 			and running self_production_cost_evaluator(cur, reactionID),
 			buy_cost_evaluator(cur, type_id), sell_cost_evaluator
-			
+	-Limit the writes to the database
+		-instead of recreating the table, just insert the values, colated at once?
+		-or at least, only update once instead of twice
+		-I might be able to combine the inserts of the table from the self_production and buy_price_evaluator

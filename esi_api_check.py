@@ -25,25 +25,54 @@ dname = os.path.dirname(abspath)
 os.chdir(dname)
 ########################################################################
 
+
+"""
+display_num
+
+Used for printing large values in human-readable format
+
+:param number: represents the number that will be interpereted for the string
+:returns: returns a formated and simplified string with a shortened place size attached
+"""
 def display_num(number):
     if number >= 1000 and number < 1000000:
-        return ("%.2f" % (number/1000)) + ' k'
+        return ("%.2f" % (number/1000)) + ' k' # magic Something, something, two decimals
     if number >= 1000000 and number < 1000000000:
         return ("%.2f" % (number/1000000)) + ' mil'
     if number >= 1000000000:
         return ("%.2f" % (number/1000000000)) + ' bil'
+  
+
+"""
+id_to_name
+
+Used to return the string name of an item using a given typeID.
+Locates the value within the invTypes table
+
+:param cur: cursor for the sqlite database
+:param id: integer value for the typeID of the material
+:returns: outputs a string for the item anme
+"""
 def id_to_name(cur, id):
     cur.execute('SELECT typeName FROM SDE.invTypes WHERE typeID=?;', (id,))
     name = cur.fetchall()
     return name[0][0]
-    
+
+# I kinda want to eliminate this function
+"""
+prepare_component_db
+
+Standalone function that recreates the table based off of the materials and products
+
+:param cur: Cursor for the sql database
+"""
 def prepare_component_db(cur):
     cur.execute(''' SELECT DISTINCT materialTypeID
                     FROM reaction_materials
                     WHERE materialTypeID NOT IN (
                         SELECT productTypeID
                         FROM reaction_products
-                    );''')
+                    );''') # the three repetitions are done this way so that there aren't repeat entries
     materials = cur.fetchall()
     cur.execute(''' SELECT DISTINCT productTypeID
                     FROM reaction_products
@@ -69,6 +98,18 @@ def prepare_component_db(cur):
         cur.execute('INSERT INTO reaction_items (type_id) VALUES (?)', (prod_mat[0],))
     cur.execute('END TRANSACTION;')
 
+"""
+generate_market_info_requests
+
+Generates the operations that will be requested from the API given a list
+of typeids, the type of order, and a regionID
+
+:param input_list: iterable list of the ID's of the items for which information will be requested
+:param order_string: can be 'buy', 'sell', or 'both'. Represents the type of order that will be requested
+:param region: ID of the region information will be requested from
+
+:returns: returns a list of operations that will be used for the multi-request.
+"""
 def generate_market_info_requests(input_list, order_string, region):
     operations = []
     for input_id in input_list:
@@ -80,33 +121,25 @@ def generate_market_info_requests(input_list, order_string, region):
                 type_id=input_id[0],
             )
         )
-        '''
-        res = api.client.head(operation)
-        if res.status==200:
-            number_of_pages = res.header['X-Pages'][0]
-            if number_of_pages > 1:
-                print("wweeeeooooweeeeeeooooo")
-            for page in range(1, number_of_pages+1):
-                operations.append(
-                    api.app.op['get_markets_region_id_orders'](
-                        region_id=10000002,
-                        page=page,
-                        order_type=order_string,
-                        type_id=input_id[0],
-                    )
-                )
-        '''
     return operations
 
+"""
+fetch_market_data
+
+If the data stored in the database is older than 1hr, the program polls the API for the market data
+
+:param cur: Cursor for the sqlite program.sqlite database
+"""
 def fetch_market_data(cur):
     cur.execute('SELECT date_pulled FROM market_info LIMIT 1;')
-    last_polled = datetime.strptime(cur.fetchall()[0][0], '%Y-%m-%d %H:%M:%S')
+    last_polled = datetime.strptime(cur.fetchall()[0][0], '%Y-%m-%d %H:%M:%S') # processes the datetime from the database into python obj
     difference = datetime.today() - last_polled
-    if difference.total_seconds()//60 < 60:
+    if difference.total_seconds()//60 < 60: # if the data is less than an hour old
         print('Market data is ' + str(difference.seconds//60) + ' minutes old')
         return
     
     print('Stale market data, requesting from the API')
+    # generate the typeid's of the materials and products, divided based on use
     cur.execute(''' SELECT DISTINCT materialTypeID 
                     FROM reaction_materials 
                     WHERE materialTypeID NOT IN (
@@ -137,25 +170,43 @@ def fetch_market_data(cur):
         operations += generate_market_info_requests(both, 'all', region)
 
     
-    results = None
+    results = None #initialize results variable
     print('starting request')
-    if len(operations) > 1:
-        results = api.client.multi_request(operations)
+    if len(operations) > 1: # if there is less than one request, multi_request fails
+        results = api.client.multi_request(operations) # multi-threaded api request
     else:
         results = api.client.request(operations[0])
     #print(results)
-    insert_market_info(results, cur)    
+    insert_market_info(results, cur) # process the responses into the database    
+
     
+"""
+initialize_database
+
+Creates the cursor that will be used throughout the program to interface with the sqlite databases
+Automatically attaches the sde database.
+
+:returns: Cursor object for interfacing with the sde.
+"""
 def initialize_database():
     con = sqlite3.connect('./program.sqlite')
     con.isolation_level = None
     cur = con.cursor()
     cur.execute("ATTACH DATABASE 'sde.sqlite' AS sde;")
     return cur
+
     
+"""
+insert_market_info
+
+Takes results from the API query and inserts them into the database.
+
+:param results: List of the request/response tuples returned from the multi-request function
+:param cur: Cur for the sqlite database
+"""
 def insert_market_info(results, cur):
     print('inserting')
-    cur.execute("DELETE FROM market_info;")
+    cur.execute("DELETE FROM market_info;") # clear all market data
     cur.execute('BEGIN TRANSACTION;')
     for swagger_object in results:
         for order in swagger_object[1].data:
@@ -179,8 +230,20 @@ def insert_market_info(results, cur):
                         FROM market_info
                         JOIN SDE.mapSolarSystems ON solarSystemID=system_id
                         WHERE security<.5
-                    );''')
-    
+                    );''') # remove market entries in lowsec
+                    
+     
+"""
+retrieve_partitioned_material_ids
+
+Used for evaluating reactions while preserving the order of chain reactions
+Gets a list of the materials/products for a given stage. 
+Stage is broken into non-involved, first step, middle step, and final step
+
+:param cur: cursor for the sqlite database
+:param mode: Tuple for deciding which stage we are looking at. Tuple values can be "==" or "!="
+:returns: Returns a list of the reactionID's for the mode, as well as the materials used in the reactions
+"""
 def retrieve_partitioned_material_ids(cur, mode):
     sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
                                 FROM SDE.industryActivity actv
@@ -209,14 +272,14 @@ def retrieve_partitioned_material_ids(cur, mode):
                                             FROM reaction_materials
                                         )
                                     )
-                                )'''
-    cur.execute(sql_reaction_id_string + ';')
+                                );'''
+    cur.execute(sql_reaction_id_string )
     reactionIDs =  cur.fetchall()
 
     cur.execute(''' SELECT DISTINCT materialTypeID
                     FROM reaction_materials
                     WHERE typeID IN ( ''' 
-                    + sql_reaction_id_string + 
+                    + sql_reaction_id_string + # looks at the 
                 ''') AND materialTypeID NOT IN
                         (SELECT type_id 
                         FROM reaction_items
@@ -343,10 +406,29 @@ def fetch_market_history(cur):
     cur.execute('BEGIN TRANSACTION;')
     for operation in operations:
         for response in operation[1].data:
-            print(operation[0].query[0])
+            # print(operation[0].query[1])
+            # print(response)
+            cur.execute(''' INSERT INTO market_history (
+                            average,
+                            history_date,
+                            highest,
+                            lowest,
+                            order_count,
+                            volume,
+                            type_id)
+                            VALUES (?,DATE(?),?,?,?,?,?);''',(
+                        response['average'],
+                        str(response['date']),
+                        response['highest'],
+                        response['lowest'],
+                        response['order_count'],
+                        response['volume'],
+                        operation[0].query[1][1])
+                        )
+            
           
             
-    cure.execute('END TRANSACTION;')
+    cur.execute('END TRANSACTION;')
 
     
 def evaluate_sell_price(cur, product_id):
