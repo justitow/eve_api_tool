@@ -4,6 +4,7 @@ import ssl
 import pickle
 import os
 from datetime import date, time, datetime, timedelta
+from dateutil import tz
 import sqlite3
 import time
 from pyfiglet import figlet_format
@@ -28,14 +29,14 @@ os.chdir(dname)
 
 
 def display_num(number):
-"""
-display_num
+    '''
+    display_num
 
-Used for printing large values in human-readable format
+    Used for printing large values in human-readable format
 
-:param number: represents the number that will be interpereted for the string
-:returns: returns a formated and simplified string with a shortened place size attached
-"""
+    :param number: represents the number that will be interpereted for the string
+    :returns: returns a formated and simplified string with a shortened place size attached
+    '''
     if number >= 1000 and number < 1000000:
         return ("%.2f" % (number/1000)) + ' k' # magic Something, something, two decimals
     if number >= 1000000 and number < 1000000000:
@@ -45,30 +46,30 @@ Used for printing large values in human-readable format
   
 
 def id_to_name(id):
-"""
-id_to_name
+    """
+    id_to_name
 
-Used to return the string name of an item using a given typeID.
-Locates the value within the invTypes table
+    Used to return the string name of an item using a given typeID.
+    Locates the value within the invTypes table
 
-:param cur: cursor for the sqlite database
-:param id: integer value for the typeID of the material
-:returns: outputs a string for the item anme
-"""
+    :param cur: cursor for the sqlite database
+    :param id: integer value for the typeID of the material
+    :returns: outputs a string for the item anme
+    """
     cur.execute('SELECT typeName FROM SDE.invTypes WHERE typeID=?;', (id,))
     name = cur.fetchall()
     return name[0][0]
 
 
 def prepare_component_db():
-# I kinda want to eliminate this function
-"""
-prepare_component_db
+    # I kinda want to eliminate this function
+    """
+    prepare_component_db
 
-Standalone function that recreates the table based off of the materials and products
+    Standalone function that recreates the table based off of the materials and products
 
-:param cur: Cursor for the sql database
-"""
+    :param cur: Cursor for the sql database
+    """
     cur.execute(''' SELECT DISTINCT materialTypeID
                     FROM reaction_materials
                     WHERE materialTypeID NOT IN (
@@ -102,18 +103,18 @@ Standalone function that recreates the table based off of the materials and prod
 
 
 def generate_market_info_requests(input_list, order_string, region):
-"""
-generate_market_info_requests
+    """
+    generate_market_info_requests
 
-Generates the operations that will be requested from the API given a list
-of typeids, the type of order, and a regionID
+    Generates the operations that will be requested from the API given a list
+    of typeids, the type of order, and a regionID
 
-:param input_list: iterable list of the ID's of the items for which information will be requested
-:param order_string: can be 'buy', 'sell', or 'both'. Represents the type of order that will be requested
-:param region: ID of the region information will be requested from
+    :param input_list: iterable list of the ID's of the items for which information will be requested
+    :param order_string: can be 'buy', 'sell', or 'both'. Represents the type of order that will be requested
+    :param region: ID of the region information will be requested from
 
-:returns: returns a list of operations that will be used for the multi-request.
-"""
+    :returns: returns a list of operations that will be used for the multi-request.
+    """
     operations = []
     for input_id in input_list:
         operations.append(
@@ -128,13 +129,13 @@ of typeids, the type of order, and a regionID
 
 
 def fetch_market_data():
-"""
-fetch_market_data
+    """
+    fetch_market_data
 
-If the data stored in the database is older than 1hr, the program polls the API for the market data
+    If the data stored in the database is older than 1hr, the program polls the API for the market data
 
-:param cur: Cursor for the sqlite program.sqlite database
-"""
+    :param cur: Cursor for the sqlite program.sqlite database
+    """
     cur.execute('SELECT date_pulled FROM market_info LIMIT 1;')
     last_polled = datetime.strptime(cur.fetchall()[0][0], '%Y-%m-%d %H:%M:%S') # processes the datetime from the database into python obj
     difference = datetime.today() - last_polled
@@ -186,14 +187,14 @@ If the data stored in the database is older than 1hr, the program polls the API 
     
 
 def initialize_database():
-"""
-initialize_database
+    """
+    initialize_database
 
-Creates the cursor that will be used throughout the program to interface with the sqlite databases
-Automatically attaches the sde database.
+    Creates the cursor that will be used throughout the program to interface with the sqlite databases
+    Automatically attaches the sde database.
 
-:returns: Cursor object for interfacing with the sde.
-"""
+    :returns: Cursor object for interfacing with the sde.
+    """
     con = sqlite3.connect('./program.sqlite')
     con.isolation_level = None
     cur = con.cursor()
@@ -203,14 +204,14 @@ Automatically attaches the sde database.
     
 
 def insert_market_info(results, cur):
-"""
-insert_market_info
+    """
+    insert_market_info
 
-Takes results from the API query and inserts them into the database.
+    Takes results from the API query and inserts them into the database.
 
-:param results: List of the request/response tuples returned from the multi-request function
-:param cur: Cur for the sqlite database
-"""
+    :param results: List of the request/response tuples returned from the multi-request function
+    :param cur: Cur for the sqlite database
+    """
     print('inserting')
     cur.execute("DELETE FROM market_info;") # clear all market data
     cur.execute('BEGIN TRANSACTION;')
@@ -241,17 +242,17 @@ Takes results from the API query and inserts them into the database.
      
 
 def retrieve_partitioned_material_ids(mode):
-"""
-retrieve_partitioned_material_ids
+    """
+    retrieve_partitioned_material_ids
 
-Used for evaluating reactions while preserving the order of chain reactions
-Gets a list of the materials/products for a given stage. 
-Stage is broken into non-involved, first step, middle step, and final step
+    Used for evaluating reactions while preserving the order of chain reactions
+    Gets a list of the materials/products for a given stage. 
+    Stage is broken into non-involved, first step, middle step, and final step
 
-:param cur: cursor for the sqlite database
-:param mode: Tuple for deciding which stage we are looking at. Tuple values can be "==" or "!="
-:returns: Returns a list of the reactionID's for the mode
-"""
+    :param cur: cursor for the sqlite database
+    :param mode: Tuple for deciding which stage we are looking at. Tuple values can be "==" or "!="
+    :returns: Returns a list of the reactionID's for the mode
+    """
     sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
                                 FROM SDE.industryActivity actv
                                 JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
@@ -289,16 +290,16 @@ Stage is broken into non-involved, first step, middle step, and final step
 
 
 def buy_cost_evaluator(type_id):
-'''
-buy_cost_evaluator
+    '''
+    buy_cost_evaluator
 
-Finds the average buy price for the first $min_material orders
-This value is stored in the reaction_items table in the buy_cost column
+    Finds the average buy price for the first $min_material orders
+    This value is stored in the reaction_items table in the buy_cost column
 
-:param cur: cursor for the sqlite database
-:param type_id: type_id for the material being evaluated
+    :param cur: cursor for the sqlite database
+    :param type_id: type_id for the material being evaluated
 
-'''
+    '''
     cur.execute('''SELECT price, volume_remain, rowid AS market_rowid
                    FROM market_info
                    WHERE type_id=?
@@ -331,17 +332,17 @@ This value is stored in the reaction_items table in the buy_cost column
 
 
 def self_production_cost_evaluator(reactionID): # this should be the one that checks if it is cheaper to self-produce
-"""
-self_production_cost_evaluator
+    """
+    self_production_cost_evaluator
 
-Evaluates the how much it would be to produce one unit of product. This information gets stored in reaction_items
-This checks for the cost of buying the material vs producing the material yourself.
-The values for these checked are each columns in reaction_items. 
-This function is called for each of the "modes" calculated for all of the reactions.
+    Evaluates the how much it would be to produce one unit of product. This information gets stored in reaction_items
+    This checks for the cost of buying the material vs producing the material yourself.
+    The values for these checked are each columns in reaction_items. 
+    This function is called for each of the "modes" calculated for all of the reactions.
 
-:param cur: cursor for sqlite database
-:param reactionID: single typeID for evaluation
-"""
+    :param cur: cursor for sqlite database
+    :param reactionID: single typeID for evaluation
+    """
     cur.execute(''' SELECT DISTINCT materialTypeID, quantity
                     FROM reaction_materials
                     WHERE typeID=?;''', (reactionID,))
@@ -377,13 +378,13 @@ This function is called for each of the "modes" calculated for all of the reacti
 
  
 def find_material_buy_prices():
-"""
-find_material_buy_prices
+    """
+    find_material_buy_prices
 
-Finds all of the material_id's and sends them to the buy_cost_evaluator function
+    Finds all of the material_id's and sends them to the buy_cost_evaluator function
 
-:param cur: cursor for the sqlite database
-"""   
+    :param cur: cursor for the sqlite database
+    """   
     cur.execute('UPDATE market_info SET marked_for_buy=0;')
     cur.execute('SELECT materialTypeID from reaction_materials;')
     materialIDs = cur.fetchall()
@@ -395,16 +396,16 @@ Finds all of the material_id's and sends them to the buy_cost_evaluator function
 
 
 def partition_and_evaluate_reaction_costs():
-"""
-partition_and_evaluate_reaction_costs
+    """
+    partition_and_evaluate_reaction_costs
 
-Seperates the reactions into the modes based on if they have materials that are also products. 
-Gets the reaction_id's and then sends the type_id's to the self_production_cost_evaluator one at
-a time to calculate the values.
+    Seperates the reactions into the modes based on if they have materials that are also products. 
+    Gets the reaction_id's and then sends the type_id's to the self_production_cost_evaluator one at
+    a time to calculate the values.
 
-:param cur: cursor for the sqlite database
+    :param cur: cursor for the sqlite database
 
-"""    
+    """    
     modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',)) 
     best_price = {}
     
@@ -417,14 +418,26 @@ a time to calculate the values.
 
 
 def fetch_market_history():
-"""
-fetch_market_history
+    """
+    fetch_market_history
 
-Queries the market_history infomation from the API. Stores it in the market_history table.
-Only active for The Forge
+    Queries the market_history infomation from the API. Stores it in the market_history table.
+    Only active for The Forge
 
-:param cur: cursor for the sqlite database
-"""
+    :param cur: cursor for the sqlite database
+    """
+    cur.execute(''' SELECT history_date
+                    FROM market_history
+                    ORDER BY history_date DESC
+                    LIMIT 1;''')
+    last_date_str = cur.fetchall()[0][0]
+    last_date = datetime.strptime(last_date_str, "%Y-%m-%d")
+    last_date = last_date.replace(tzinfo=tz.tzutc())
+    today = datetime.today()
+    today = today.replace(tzinfo=tz.tzlocal())
+    time_difference = today - last_date
+    if time_difference.days < 2:
+        return
     cur.execute(''' SELECT materialTypeID
                     FROM reaction_materials
                     UNION
@@ -433,15 +446,15 @@ Only active for The Forge
     reaction_types = cur.fetchall()
     print('fetching market history')
     operations = []
-    #regions = [10000002, 10000042, 10000043, 10000032]
-    #for region in regions:
-    for input_id in reaction_types:
-        operations.append(
-            api.app.op['get_markets_region_id_history'](
-                region_id=10000002,
-                type_id=input_id[0],
-            ) 
-        )
+    regions = [10000002, 10000042, 10000043, 10000032]
+    for region in regions:
+        for input_id in reaction_types:
+            operations.append(
+                api.app.op['get_markets_region_id_history'](
+                    region_id=region,
+                    type_id=input_id[0],
+                ) 
+            )
         
     results = api.client.multi_request(operations)
     cur.execute('DELETE FROM market_history;')
@@ -457,15 +470,17 @@ Only active for The Forge
                             lowest,
                             order_count,
                             volume,
-                            type_id)
-                            VALUES (?,DATE(?),?,?,?,?,?);''',(
+                            type_id,
+                            region_id)
+                            VALUES (?,DATE(?),?,?,?,?,?,?);''',(
                         response['average'],
                         str(response['date']),
                         response['highest'],
                         response['lowest'],
                         response['order_count'],
                         response['volume'],
-                        operation[0].query[1][1])
+                        operation[0].query[1][1],
+                        operation[0].path[9:17],),
                         )
             
           
@@ -475,14 +490,14 @@ Only active for The Forge
 
 
 def evaluate_sell_price(product_id):
-"""
-evaluate_sell_price
+    """
+    evaluate_sell_price
 
-Goes through the prices that you can sell the materials for, coalates based on
-the min_product variable
+    Goes through the prices that you can sell the materials for, coalates based on
+    the min_product variable
 
-:param product_id: ID that is checked from the database
-"""
+    :param product_id: ID that is checked from the database
+    """
     cur.execute(''' SELECT price, volume_remain, rowid
                     FROM market_info
                     WHERE is_buy_order=1
@@ -511,11 +526,11 @@ the min_product variable
     cur.execute('UPDATE reaction_items SET sell_cost=? WHERE type_id=?', (total_price, product_id))
    
 def find_product_sell_prices():
-'''
-find_product_sell_prices
+    '''
+    find_product_sell_prices
 
-Calls the evaluate_sell_price with each product from the list of product_reactions.
-'''
+    Calls the evaluate_sell_price with each product from the list of product_reactions.
+    '''
     cur.execute('SELECT productTypeID FROM reaction_products;')
     products_query = cur.fetchall()
     
@@ -525,14 +540,14 @@ Calls the evaluate_sell_price with each product from the list of product_reactio
     cur.execute('END TRANSACTION;')
 
 def evaluate_reaction_margins():
-'''
-evaluate_reaction_margins
+    '''
+    evaluate_reaction_margins
 
-Pulls data from reaction_items to find the cheapest way to obtain
-the materials. It also pulls the sell price from reaction_items. It also
-find the quantity produced in the reaction 
+    Pulls data from reaction_items to find the cheapest way to obtain
+    the materials. It also pulls the sell price from reaction_items. It also
+    find the quantity produced in the reaction 
 
-'''
+    '''
     cur.execute('DELETE FROM reaction_margins;')
     cur.execute('SELECT productTypeID, quantity  FROM reaction_products;')
     products_query = cur.fetchall()
@@ -656,6 +671,7 @@ def find_purchase_details(recipe, current_type_id):
             
         
             
+            
     cur.execute(''' SELECT obtain_price, margin
                     FROM reaction_margins
                     WHERE product_type_id=?;''', (current_type_id,))
@@ -742,7 +758,7 @@ if __name__=="__main__":
     print('welcome to zombocom')
     
     fetch_market_data()
-    # fetch_market_history()
+    fetch_market_history()
     prepare_component_db()
     find_material_buy_prices()
     partition_and_evaluate_reaction_costs()
