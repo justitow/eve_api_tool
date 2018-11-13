@@ -1083,3 +1083,4 @@ op				market_order_operation[0].path[9:17]
 		-I might be able to combine the inserts of the table from the self_production and buy_price_evaluator
 	-In buy_cost_evaluator
 		-work out a check for when there are insufficient orders on the market to support the number of materials requested.
+  -Pretty sure its been working, but I do want to check that I look at the ammount of material used and product produced when looking at the reactions. 

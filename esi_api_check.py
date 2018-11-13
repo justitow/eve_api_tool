@@ -477,6 +477,11 @@ Only active for The Forge
 def evaluate_sell_price(product_id):
 """
 evaluate_sell_price
+
+Goes through the prices that you can sell the materials for, coalates based on
+the min_product variable
+
+:param product_id: ID that is checked from the database
 """
     cur.execute(''' SELECT price, volume_remain, rowid
                     FROM market_info
@@ -506,6 +511,11 @@ evaluate_sell_price
     cur.execute('UPDATE reaction_items SET sell_cost=? WHERE type_id=?', (total_price, product_id))
    
 def find_product_sell_prices():
+'''
+find_product_sell_prices
+
+Calls the evaluate_sell_price with each product from the list of product_reactions.
+'''
     cur.execute('SELECT productTypeID FROM reaction_products;')
     products_query = cur.fetchall()
     
@@ -515,6 +525,14 @@ def find_product_sell_prices():
     cur.execute('END TRANSACTION;')
 
 def evaluate_reaction_margins():
+'''
+evaluate_reaction_margins
+
+Pulls data from reaction_items to find the cheapest way to obtain
+the materials. It also pulls the sell price from reaction_items. It also
+find the quantity produced in the reaction 
+
+'''
     cur.execute('DELETE FROM reaction_margins;')
     cur.execute('SELECT productTypeID, quantity  FROM reaction_products;')
     products_query = cur.fetchall()
