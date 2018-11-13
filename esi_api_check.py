@@ -53,7 +53,7 @@ Locates the value within the invTypes table
 :param id: integer value for the typeID of the material
 :returns: outputs a string for the item anme
 """
-def id_to_name(cur, id):
+def id_to_name(id):
     cur.execute('SELECT typeName FROM SDE.invTypes WHERE typeID=?;', (id,))
     name = cur.fetchall()
     return name[0][0]
@@ -66,7 +66,7 @@ Standalone function that recreates the table based off of the materials and prod
 
 :param cur: Cursor for the sql database
 """
-def prepare_component_db(cur):
+def prepare_component_db():
     cur.execute(''' SELECT DISTINCT materialTypeID
                     FROM reaction_materials
                     WHERE materialTypeID NOT IN (
@@ -130,7 +130,7 @@ If the data stored in the database is older than 1hr, the program polls the API 
 
 :param cur: Cursor for the sqlite program.sqlite database
 """
-def fetch_market_data(cur):
+def fetch_market_data():
     cur.execute('SELECT date_pulled FROM market_info LIMIT 1;')
     last_polled = datetime.strptime(cur.fetchall()[0][0], '%Y-%m-%d %H:%M:%S') # processes the datetime from the database into python obj
     difference = datetime.today() - last_polled
@@ -244,7 +244,7 @@ Stage is broken into non-involved, first step, middle step, and final step
 :param mode: Tuple for deciding which stage we are looking at. Tuple values can be "==" or "!="
 :returns: Returns a list of the reactionID's for the mode
 """
-def retrieve_partitioned_material_ids(cur, mode):
+def retrieve_partitioned_material_ids(mode):
     sql_reaction_id_string = '''SELECT invt.typeID --, invt.typeName
                                 FROM SDE.industryActivity actv
                                 JOIN SDE.invTypes invt ON invt.typeID=actv.typeID
@@ -278,6 +278,8 @@ def retrieve_partitioned_material_ids(cur, mode):
 
     
     return reactionIDs
+
+
 '''
 buy_cost_evaluator
 
@@ -288,7 +290,7 @@ This value is stored in the reaction_items table in the buy_cost column
 :param type_id: type_id for the material being evaluated
 
 '''
-def buy_cost_evaluator(cur, type_id):
+def buy_cost_evaluator(type_id):
     cur.execute('''SELECT price, volume_remain, rowid AS market_rowid
                    FROM market_info
                    WHERE type_id=?
@@ -330,7 +332,7 @@ This function is called for each of the "modes" calculated for all of the reacti
 :param cur: cursor for sqlite database
 :param reactionID: single typeID for evaluation
 """
-def self_production_cost_evaluator(cur, reactionID): # this should be the one that checks if it is cheaper to self-produce
+def self_production_cost_evaluator(reactionID): # this should be the one that checks if it is cheaper to self-produce
     cur.execute(''' SELECT DISTINCT materialTypeID, quantity
                     FROM reaction_materials
                     WHERE typeID=?;''', (reactionID,))
@@ -353,7 +355,6 @@ def self_production_cost_evaluator(cur, reactionID): # this should be the one th
         buy_cost = price[0][0]
         production_cost = price[0][1]
         if buy_cost is None: # this means no buy orders were found for a material. Common for drugs
-            #print('When evaluating production costs, no orders found for: ', id_to_name(cur, material_id))
             continue
         if production_cost is not None and not always_buy: # the always_buy is a parameter for if we are evaluating subcomponents
             cost = min(buy_cost, production_cost)
@@ -372,13 +373,13 @@ Finds all of the material_id's and sends them to the buy_cost_evaluator function
 
 :param cur: cursor for the sqlite database
 """    
-def find_material_buy_prices(cur):
+def find_material_buy_prices():
     cur.execute('UPDATE market_info SET marked_for_buy=0;')
     cur.execute('SELECT materialTypeID from reaction_materials;')
     materialIDs = cur.fetchall()
     cur.execute('BEGIN TRANSACTION;')
     for materialID in materialIDs:
-        buy_cost_evaluator(cur, materialID[0])
+        buy_cost_evaluator(materialID[0])
     cur.execute('END TRANSACTION;')
 
 
@@ -392,15 +393,15 @@ a time to calculate the values.
 :param cur: cursor for the sqlite database
 
 """    
-def partition_and_evaluate_reaction_costs(cur):
+def partition_and_evaluate_reaction_costs():
     modes = (('=', '=',), ('=', '!=',), ('!=', '!=',), ('!=', '=',)) 
     best_price = {}
     
     for mode in modes:
-        reactionIDs = retrieve_partitioned_material_ids(cur, mode)
+        reactionIDs = retrieve_partitioned_material_ids(mode)
         cur.execute('BEGIN TRANSACTION;')
         for reactionID in reactionIDs:
-            self_production_cost_evaluator(cur, reactionID[0])
+            self_production_cost_evaluator(reactionID[0])
         cur.execute('END TRANSACTION;')
 
 """
@@ -411,7 +412,7 @@ Only active for The Forge
 
 :param cur: cursor for the sqlite database
 """
-def fetch_market_history(cur):
+def fetch_market_history():
     cur.execute(''' SELECT materialTypeID
                     FROM reaction_materials
                     UNION
@@ -463,7 +464,7 @@ def fetch_market_history(cur):
 """
 evaluate_sell_price
 """
-def evaluate_sell_price(cur, product_id):
+def evaluate_sell_price(product_id):
     cur.execute(''' SELECT price, volume_remain, rowid
                     FROM market_info
                     WHERE is_buy_order=1
@@ -491,16 +492,16 @@ def evaluate_sell_price(cur, product_id):
     total_price = subtotal_price/total_volume
     cur.execute('UPDATE reaction_items SET sell_cost=? WHERE type_id=?', (total_price, product_id))
    
-def find_product_sell_prices(cur):
+def find_product_sell_prices():
     cur.execute('SELECT productTypeID FROM reaction_products;')
     products_query = cur.fetchall()
     
     cur.execute('BEGIN TRANSACTION;')
     for query in products_query:
-        evaluate_sell_price(cur, query[0])
+        evaluate_sell_price(query[0])
     cur.execute('END TRANSACTION;')
 
-def evaluate_reaction_margins(cur):
+def evaluate_reaction_margins():
     cur.execute('DELETE FROM reaction_margins;')
     cur.execute('SELECT productTypeID, quantity  FROM reaction_products;')
     products_query = cur.fetchall()
@@ -525,7 +526,7 @@ def evaluate_reaction_margins(cur):
                         (productID, production_cost*product_count, sell_cost*product_count, margin*product_count))
     cur.execute('END TRANSACTION;')
 
-def find_recipe(cur, product_id):
+def find_recipe(product_id):
     cur.execute(''' SELECT typeID
                     FROM reaction_products
                     WHERE productTypeID=?;''', (product_id,))
@@ -537,7 +538,7 @@ def find_recipe(cur, product_id):
     recipe = {}
     print('')
     print(figlet_format(str(product_id), font='starwars'))
-    print(id_to_name(cur, product_id), '\n')
+    print(id_to_name(product_id), '\n')
     print('*--------------------------------------------------*')
     for material in materials:
         materialID = material[0]
@@ -550,7 +551,7 @@ def find_recipe(cur, product_id):
         material_production_cost = mat_cost[0][0]
         material_buy_cost = mat_cost[0][1]
         
-        print(id_to_name(cur,materialID), 'x' + str(materialQuantity), mat_cost)
+        print(id_to_name(materialID), 'x' + str(materialQuantity), mat_cost)
         if (not always_buy) and (material_buy_cost is not None) and (material_production_cost is not None) and (material_production_cost < material_buy_cost):
             cur.execute(''' SELECT typeID
                             FROM reaction_products
@@ -569,7 +570,7 @@ def find_recipe(cur, product_id):
                                 WHERE type_id=?;''', (sub_materialID,))
                 sub_mat_cost = cur.fetchall()
                 sub_material_cost = sub_mat_cost[0][0]
-                print('    ', id_to_name(cur, sub_materialID), 'x' + str(sub_materialQuantity), sub_mat_cost)
+                print('    ', id_to_name(sub_materialID), 'x' + str(sub_materialQuantity), sub_mat_cost)
                 if sub_materialID not in recipe:
                     recipe[sub_materialID] = sub_materialQuantity*materialQuantity
                 else:
@@ -583,7 +584,7 @@ def find_recipe(cur, product_id):
     #print(recipe)
     print('total:')
     for item in recipe:
-        print(' ', id_to_name(cur, item), 'x' + str(recipe[item]))
+        print(' ', id_to_name(item), 'x' + str(recipe[item]))
     print('')
     return recipe
 
@@ -594,17 +595,17 @@ def refresh_margin_display(top_margins):
         margin = response[1]
         obtain_price = response[2]
         sell_price = response[3]
-        print(str(menu_index+1) + ".)", display_num(margin) ,'with', id_to_name(cur, product_type_id), display_num(sell_price) , '-', display_num(obtain_price), "ROI:", "%.2f"%((sell_price-obtain_price)/obtain_price*100) + "%")
+        print(str(menu_index+1) + ".)", display_num(margin) ,'with', id_to_name(product_type_id), display_num(sell_price) , '-', display_num(obtain_price), "ROI:", "%.2f"%((sell_price-obtain_price)/obtain_price*100) + "%")
         menu_index += 1
     return input('choice ("e" to exit): ')
     
-def find_purchase_details(cur, recipe, current_type_id):
+def find_purchase_details(recipe, current_type_id):
     total_count = int(input('How many reactions will be taking place? '))
     print(recipe)
     volumes = {}
     volume_by_market = {}
     for material in recipe:
-        print(' ', id_to_name(cur, material), 'x', recipe[material]*total_count)
+        print(' ', id_to_name(material), 'x', recipe[material]*total_count)
         cur.execute(''' SELECT volume
                         FROM SDE.invTypes
                         WHERE typeID=?''', (material,))
@@ -639,7 +640,7 @@ def find_purchase_details(cur, recipe, current_type_id):
     print('')
     return total_count
     
-def display_top_margins(cur):
+def display_top_margins():
     cur.execute(''' SELECT product_type_id, margin, obtain_price, sell_price
                     FROM reaction_margins
                     WHERE margin > 0
@@ -653,16 +654,16 @@ def display_top_margins(cur):
             response = int(response)
             response -= 1
             if response >= 0 and response < len(top_margins):
-                print('Retrieving recipe for', id_to_name(cur, top_margins[response][0]) + "." )
+                print('Retrieving recipe for', id_to_name(top_margins[response][0]) + "." )
                 print('')
                 print('')
-                recipe = find_recipe(cur, top_margins[response][0])
+                recipe = find_recipe(top_margins[response][0])
                 current_type_id = top_margins[response][0]
             else:
                 print('Error: too high')
             response = input('choice ("e" to exit): ')
             if response == 'b':
-                find_purchase_details(cur, recipe, current_type_id)
+                find_purchase_details(recipe, current_type_id)
                 response = input('choice: ')
                 continue
         #except: 
@@ -704,18 +705,18 @@ api = API() #if the swagger information is older than a day, it will re-request 
 min_material = 100000
 min_product = 100000
 always_buy = 0
+cur = initialize_database()
 
 if __name__=="__main__":
     print('welcome to zombocom')
-    cur = initialize_database()
     
-    fetch_market_data(cur)
-    # fetch_market_history(cur)
-    prepare_component_db(cur)
-    find_material_buy_prices(cur)
-    partition_and_evaluate_reaction_costs(cur)
-    find_product_sell_prices(cur)
-    evaluate_reaction_margins(cur)
-    display_top_margins(cur)
+    fetch_market_data()
+    # fetch_market_history()
+    prepare_component_db()
+    find_material_buy_prices()
+    partition_and_evaluate_reaction_costs()
+    find_product_sell_prices()
+    evaluate_reaction_margins()
+    display_top_margins()
 
     #print(results)
