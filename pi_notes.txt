@@ -24,3 +24,114 @@ Its looks like only the groups for category 42 and 43 are relevant.
 It appears that Planetary Resources (categoryID=42) are T0 resources
 Planetary Commodities (categoryID=43) are T1-T4 materials
 groupID IN (1032, 1033, 1035, 1034, 1040, 1041, 1042)
+
+--RAW RESOURCES (from here on out, I'll refer to them as T0)
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID IN (1032, 1033, 1035);
+
+--T1 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1042;
+
+--T2 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1034;
+
+--T3 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1040;
+
+--T4 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1041;
+
+So...
+PI is...a....?
+Lets check ramActivities
+So...planetary interactions might be a reaction, or a manufacturing.
+I can check for industry activities that use a T0 material
+So, industryActivityMaterials found 0 results
+So its not considered a blueprint in the same way that reactions are considered.
+
+Maybe one of the planet tables
+...
+
+So yeah, definitely the planet tables.
+CREATE TABLE IF NOT EXISTS "planetSchematics" (
+        "schematicID" INTEGER NOT NULL,
+        "schematicName" VARCHAR(255),
+        "cycleTime" INTEGER,
+        PRIMARY KEY ("schematicID")
+);
+
+CREATE TABLE IF NOT EXISTS "planetSchematicsTypeMap" (
+        "schematicID" INTEGER NOT NULL,
+        "typeID" INTEGER NOT NULL,
+        quantity INTEGER,
+        "isInput" BOOLEAN,
+        PRIMARY KEY ("schematicID", "typeID"),
+        CHECK ("isInput" IN (0, 1))
+);
+
+Not sure what the "pinMap" table is for.
+Let me crosscheck with schematicID=128 (toxic metals)
+schematicID|pinTypeID
+128|2469
+128|2471
+128|2473
+128|2481
+128|2483
+128|2490
+128|2492
+128|2493
+
+So, lets see if pinTypeID is equivalent to something
+Looks like its the facility type. (those are all processors)
+
+SELECT * FROM planetSchematicsTypeMap WHERE schematicID=128;
+
+So yeah, everything is in the planetSchematicsTypeMap 
+
+Okay. So, the approach to value here is different 
+Instead of buying material, I just have the option to sell the lower tier materials
+or use them to produce hier tier materials.
+
+There is also a cascading production chain
+T0 -> T1 -> T2 -> T3 -> T4
+
+Where in the database is the information about where materials can be extracted?
+I'm legit not sure. Maybe I can look at the extractors and that may give me a hint
+This infomration could potentially be found in the dmg tables.
+How would I check if it is in the dmg tables?
+
+sqlite> SELECT * FROM dgmAttributeTypes WHERE UPPER(attributeName) LIKE "%PLANET%";
+attributeID|attributeName|description|iconID|defaultValue|published|displayName|unitID|stackable|highIsGood|categoryID
+865|planetAnchorDistance|How many meters from the standard warp-in distance a planet can be anchored from.|0|100000.0|0||1|1|1|9
+1632|planetRestriction|This type can only be found/used/created on a planet matching this type ID.||0.0|1|Planet Type Restriction|116|1|1|7
+1653|specialPlanetaryCommoditiesHoldCapacity|Capacity of Planetary Commodities hold|71|0.0|1|Planetary Commodities Hold Capacity|9|1|1|4
+sqlite> SELECT * FROM dgmAttributeTypes WHERE UPPER(description) LIKE "%PLANET%";
+attributeID|attributeName|description|iconID|defaultValue|published|displayName|unitID|stackable|highIsGood|categoryID
+865|planetAnchorDistance|How many meters from the standard warp-in distance a planet can be anchored from.|0|100000.0|0||1|1|1|9
+1632|planetRestriction|This type can only be found/used/created on a planet matching this type ID.||0.0|1|Planet Type Restriction|116|1|1|7
+1639|exportTax|Base export tax (ISK per m3 of volume) on commodities exported from a planet via this pin.||0.0|1|Export Tax|133|1|0|7
+1640|importTaxMultiplier|Cost multiplier per m3 volume of this commodity when importing to a planet||1.0|0||121|1|0|7
+1641|exportTaxMultiplier|Export tax multiplier when exporting this commodity off a planet.||1.0|0||121|1|0|7
+1645|extractorDepletionRate|This is the amount that is added to the depletion of a resource on a planet||0.0|0|||1|1|7
+1653|specialPlanetaryCommoditiesHoldCapacity|Capacity of Planetary Commodities hold|71|0.0|1|Planetary Commodities Hold Capacity|9|1|1|4
+
+Commodities...
+
+I'm going to put that on hold for the moment
+1632|planetRestriction|This type can only be found/used/created on a planet matching this type ID.||0.0|1|Planet Type Restriction|116|1|1|7
+
+attributeID|attributeName|description|iconID|defaultValue|published|displayName|unitID|stackable|highIsGood|categoryID
+11642|pinExtractionQuantity|Base amount (in units) of commodities extracted by an extractor pin.||100.0|1|Extraction Quantity||1|1|7
+sqlite>
+
+SELECT * FROM dgmAttributeTypes WHERE UPPER(description) LIKE "%COMMODIT%";
+

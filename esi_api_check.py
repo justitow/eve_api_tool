@@ -745,7 +745,7 @@ class API:
             headers={'User-Agent': 'Something'},
             raw_body_only=False,
             )
-        
+
 
 # I want this as a global each time the program is run.        
 api = API() #if the swagger information is older than a day, it will re-request it from the server
@@ -765,5 +765,7 @@ if __name__=="__main__":
     find_product_sell_prices()
     evaluate_reaction_margins()
     display_top_margins()
+    
+    
 
     #print(results)
