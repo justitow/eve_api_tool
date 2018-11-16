@@ -135,3 +135,231 @@ sqlite>
 
 SELECT * FROM dgmAttributeTypes WHERE UPPER(description) LIKE "%COMMODIT%";
 
+
+sqlite> .schema dgmAttributeTypes
+CREATE TABLE IF NOT EXISTS "dgmAttributeTypes" (
+        "attributeID" INTEGER NOT NULL,
+        "attributeName" VARCHAR(100),
+        description VARCHAR(1000),
+        "iconID" INTEGER,
+        "defaultValue" FLOAT,
+        published BOOLEAN,
+        "displayName" VARCHAR(150),
+        "unitID" INTEGER,
+        stackable BOOLEAN,
+        "highIsGood" BOOLEAN,
+        "categoryID" INTEGER,
+        PRIMARY KEY ("attributeID"),
+        CHECK (published IN (0, 1)),
+        CHECK (stackable IN (0, 1)),
+        CHECK ("highIsGood" IN (0, 1))
+);
+
+I will check attributeName and description
+
+SELECT attributeID, attributeName, description, categoryID
+FROM dgmAttributeTypes
+WHERE UPPER(attributeName) LIKE "%PLANET%"
+OR UPPER(attributeName) LIKE "%COMMODIT%";
+
+
+
+SELECT effectID, effectName, description
+FROM dgmEffects
+WHERE UPPER(effectName) LIKE "%PLANET%"
+OR UPPER(effectName) LIKE "%COMMODIT%";
+
+effectID|effectName|description
+5475|shipBonusPICommoditiesHoldGI|
+5478|shipBonusPICommoditiesHoldGI2|Automatically generated effect
+
+Okay, so looks like the effects are only for ships or something like that.
+
+Okay, expressions are all functions or math expressions
+So, I probably don't have to look at the effects
+Just the dgmTypeAttributes table 
+
+So I will look at 1632 and 1653 attributes
+
+SELECT INVT.typeID, INVT.typeName, DGMT.valueInt, DGMT.valueFloat
+FROM dgmTypeAttributes DGMT
+JOIN invTypes INVT
+	ON DGMT.typeID=INVT.typeID
+WHERE attributeID=1632;
+<- The previous entry holds information on which extractors are tied to which planets
+
+But what ties the extractor to the T0 material?
+
+SELECT attributeID, attributeName, description, categoryID
+FROM dgmAttributeTypes
+WHERE UPPER(attributeName) LIKE "%PLANET%"
+OR UPPER(attributeName) LIKE "%COMMODIT%"
+OR UPPER(description) LIKE "%PLANET%"
+OR UPPER(description) LIKE "%COMMODIT%";
+
+attributeID|attributeName|description|categoryID
+1632|planetRestriction|This type can only be found/used/created on a planet matching this type ID.|7
+1638|importTax|Base importation tax (ISK per m3 of volume) for commodities imported to pin.|7
+1639|exportTax|Base export tax (ISK per m3 of volume) on commodities exported from a planet via this pin.|7
+1640|importTaxMultiplier|Cost multiplier per m3 volume of this commodity when importing to a planet|7
+1641|exportTaxMultiplier|Export tax multiplier when exporting this commodity off a planet.|7
+1642|pinExtractionQuantity|Base amount (in units) of commodities extracted by an extractor pin.|7
+1645|extractorDepletionRate|This is the amount that is added to the depletion of a resource on a planet|7
+
+SELECT INVT.typeID, INVT.typeName, DGMT.valueInt, DGMT.valueFloat
+FROM dgmTypeAttributes DGMT
+JOIN invTypes INVT
+	ON DGMT.typeID=INVT.typeID
+WHERE attributeID=1642
+AND UPPER(INVT.typeNAME) LIKE "%NON-CS%";
+
+Okay, so I have extractor -> planet
+I want T0 -> extractor
+
+I'm gonna check the planetSchematicsPinMap
+
+SELECT schematicID, pinTypeID
+FROM planetSchematicsPinMap
+WHERE pinTypeID=2440;
+
+hmm.
+
+Something that can be relate the extractors
+Maybe I'll do a search of the dgmAttributeTypes for extract
+
+SELECT attributeID, attributeName, description, categoryID
+FROM dgmAttributeTypes
+WHERE UPPER(attributeName) LIKE "%RAW%"
+OR UPPER(description) LIKE "%RAW%"
+
+SELECT INVT.typeID, INVT.typeName, DGMT.attributeID, DGMT.valueInt, DGMT.valueFloat
+FROM dgmTypeAttributes DGMT
+JOIN invTypes INVT
+	ON DGMT.valueFloat=INVT.typeID
+WHERE UPPER(INVT.typeNAME) LIKE "%NON-CS%";
+
+sqlite> SELECT INVT.typeID, INVT.typeName, DGMT.attributeID, DGMT.valueInt, DGMT.valueFloat
+   ...> FROM dgmTypeAttributes DGMT
+   ...> JOIN invTypes INVT
+   ...>         ON DGMT.typeID=INVT.typeID
+   ...> WHERE UPPER(INVT.typeNAME) LIKE "%NON-CS%";
+typeID|typeName|attributeID|valueInt|valueFloat
+2443|Plasma Non-CS Crystals Extractor|1644||5.0
+2442|Lava Non-CS Crystals Extractor|1643||300.0
+2442|Lava Non-CS Crystals Extractor|709||2306.0
+2443|Plasma Non-CS Crystals Extractor|49||200.0
+2306|Non-CS Crystals|1640||5.0
+2442|Lava Non-CS Crystals Extractor|1632||2015.0
+2442|Lava Non-CS Crystals Extractor|15||800.0
+2442|Lava Non-CS Crystals Extractor|49||200.0
+2443|Plasma Non-CS Crystals Extractor|15||800.0
+2443|Plasma Non-CS Crystals Extractor|709||2306.0
+2443|Plasma Non-CS Crystals Extractor|1645||1.0
+2442|Lava Non-CS Crystals Extractor|1642||1000.0
+2442|Lava Non-CS Crystals Extractor|1644||5.0
+2443|Plasma Non-CS Crystals Extractor|1643||300.0
+2443|Plasma Non-CS Crystals Extractor|1632||2063.0
+2442|Lava Non-CS Crystals Extractor|1645||1.0
+2306|Non-CS Crystals|1641||5.0
+2443|Plasma Non-CS Crystals Extractor|1642||1000.0
+sqlite> SELECT INVT.typeID, INVT.typeName, DGMT.attributeID, DGMT.valueInt, DGMT.valueFloat
+   ...> FROM dgmTypeAttributes DGMT
+   ...> JOIN invTypes INVT
+   ...>         ON DGMT.valueFloat=INVT.typeID
+   ...> WHERE UPPER(INVT.typeNAME) LIKE "%NON-CS%";
+typeID|typeName|attributeID|valueInt|valueFloat
+2306|Non-CS Crystals|709||2306.0
+2306|Non-CS Crystals|709||2306.0
+
+The answer is up there somwhere
+sqlite> SELECT * FROM dgmAttributeTypes WHERE attributeID=709;
+attributeID|attributeName|description|iconID|defaultValue|published|displayName|unitID|stackable|highIsGood|categoryID
+709|harvesterType|The type of material harvested.|0|0.0|1|Harvested Type|116|1|1|7
+
+Okay, so I look for type produced from an extractor 
+
+SELECT INVT.typeID, INVT.typeName, DGMT.attributeID, DGMT.valueInt, DGMT.valueFloat
+FROM dgmTypeAttributes DGMT
+JOIN invTypes INVT
+	ON DGMT.typeID=INVT.typeID
+WHERE attributeID=709;
+
+So 	709 -> material from extractor
+	1632 -> extractor bound to this planet type
+	
+SELECT DGMTA.valueFloat, INVT.typeName, DGMTA.typeID, INVTE.typeName, DGMTAP.valueFloat, INVTP.typeName
+FROM dgmTypeAttributes DGMTA
+JOIN invTypes INVT ON DGMTA.valueFloat=INVT.typeID
+JOIN dgmTypeAttributes DGMTAP ON DGMTAP.typeID=DGMTA.typeID
+JOIN invTypes INVTP ON DGMTAP.valueFloat=INVTP.typeID
+JOIN invTypes INVTE ON DGMTA.typeID=INVTE.typeID
+WHERE DGMTA.attributeID=709
+AND DGMTAP.attributeID=1632
+ORDER BY DGMTA.valueFloat;
+
+
+--RAW RESOURCES (from here on out, I'll refer to them as T0)
+SELECT typeID, groupID, typeName, volume
+FROM invTypes
+WHERE groupID IN (1032, 1033, 1035);
+
+--T1 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1042;
+
+--T2 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1034;
+
+--T3 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1040;
+
+--T4 Resources
+SELECT typeID, typeName
+FROM invTypes
+WHERE groupID=1041;
+
+DROP TABLE commodity_type;
+CREATE TABLE commodity_type
+(
+type_ID INTEGER,
+group_ID INTEGER,
+type_name VARCHAR2(100),
+volume FLOAT,
+tier INTEGER,
+sell_price FLOAT,
+component_sell_price FLOAT,
+market_volume INTEGER
+);
+
+DELETE FROM commodity_type;
+INSERT INTO commodity_type (type_id, group_id, type_name, volume, tier)
+SELECT typeID, groupID, typeName, volume, 0
+		FROM invTypes
+		WHERE groupID IN (1032, 1033, 1035);
+
+INSERT INTO commodity_type (type_id, group_id, type_name, volume, tier)		
+SELECT typeID, groupID, typeName, volume, 1
+FROM invTypes
+WHERE groupID=1042;
+
+INSERT INTO commodity_type (type_id, group_id, type_name, volume, tier)		
+SELECT typeID, groupID, typeName, volume, 2
+FROM invTypes
+WHERE groupID=1034;
+
+INSERT INTO commodity_type (type_id, group_id, type_name, volume, tier)		
+SELECT typeID, groupID, typeName, volume, 3
+FROM invTypes
+WHERE groupID=1040;
+
+INSERT INTO commodity_type (type_id, group_id, type_name, volume, tier)		
+SELECT typeID, groupID, typeName, volume, 4
+FROM invTypes
+WHERE groupID=1041;
+
+Maybe I'll add a column for the component sell value?
